@@ -42,7 +42,7 @@
             align-items: center;
             border-bottom: 1px solid var(--bg-light);
             z-index: 100;
-            flex-wrap: wrap; /* Permite quebra de linha em telas pequenas */
+            flex-wrap: wrap;
             gap: 15px;
         }
 
@@ -74,7 +74,7 @@
             display: flex;
             align-items: center;
             gap: 10px;
-            padding: 5px 10px;
+            padding: 5px;
             background-color: var(--bg-light);
             border-radius: 5px;
         }
@@ -102,6 +102,7 @@
             cursor: pointer;
             font-size: 0.9rem;
             transition: background-color 0.2s;
+            white-space: nowrap; /* Impede que o texto do botão quebre */
         }
 
         .main-header button:hover:not(:disabled) {
@@ -120,7 +121,14 @@
         #btn-conectar:hover:not(:disabled) {
             background-color: #0066c0;
         }
-
+        
+        #btn-chamada-video {
+            background-color: var(--accent-green);
+            font-weight: bold;
+        }
+        #btn-chamada-video:hover:not(:disabled) {
+            background-color: #26a741;
+        }
 
         /* --- CORPO DA APLICAÇÃO --- */
         .app-body {
@@ -271,6 +279,35 @@
             cursor: pointer;
             font-weight: bold;
         }
+
+        /* --- RESPONSIVIDADE --- */
+        @media (max-width: 768px) {
+            .main-header {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            .header-controls {
+                justify-content: center;
+            }
+            .app-body {
+                flex-direction: column;
+            }
+            .video-area {
+                height: 60vh; /* Ocupa 60% da altura da tela */
+                flex-grow: 0;
+            }
+            .chat-area {
+                height: 40vh; /* Ocupa 40% da altura da tela */
+                flex-grow: 0;
+            }
+            .pip-video {
+                width: 120px;
+                height: 90px;
+                bottom: 10px;
+                right: 10px;
+            }
+        }
+
     </style>
 </head>
 <body>
@@ -287,6 +324,7 @@
             <div class="connection-info">
                 <input id="id_amigo" type="text" placeholder="ID do parceiro">
                 <button id="btn-conectar" onclick="conectar()">Conectar</button>
+                <button id="btn-chamada-video" onclick="chamadaVideo()" disabled>📹 Ligar Vídeo</button>
             </div>
         </div>
     </header>
@@ -342,6 +380,7 @@
         const meuIdEl = document.getElementById('meuId');
         const idAmigoEl = document.getElementById('id_amigo');
         const btnConectarEl = document.getElementById('btn-conectar');
+        const btnChamadaVideoEl = document.getElementById('btn-chamada-video');
         const mensagensContainerEl = document.getElementById('container-mensagens');
         const enviaMensagemEl = document.getElementById('enviaMensagem');
         const incomingCallUIEl = document.getElementById('incomingCallUI');
@@ -457,6 +496,7 @@
                 exibirMensagem('Conexão encerrada.', 'sistema');
                 updateConnectionUI(false);
                 currentPeerId = null;
+                limparChamada(); // Garante que a chamada também seja limpa
             });
         }
 
@@ -464,6 +504,7 @@
             idAmigoEl.disabled = isConnected;
             btnConectarEl.disabled = isConnected;
             btnConectarEl.textContent = isConnected ? 'Conectado' : 'Conectar';
+            btnChamadaVideoEl.disabled = !isConnected;
         }
 
         function enviarMensagem() {
@@ -491,7 +532,9 @@
         async function copiarId() {
             try {
                 await navigator.clipboard.writeText(meuIdEl.textContent);
-                alert('ID copiado!');
+                // Melhor que um alert()
+                const originalText = btnConectarEl.previousElementSibling.textContent;
+                exibirMensagem('ID copiado para a área de transferência!', 'sistema');
             } catch(err) { alert('Falha ao copiar.'); }
         }
 
