@@ -25,6 +25,8 @@
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&display=swap');
+
         :root {
             --bg-primary: #0a0e27;
             --bg-secondary: #1a1d3a;
@@ -584,14 +586,6 @@
     <div class="notification" id="notification"></div>
 
     <script>
-        // Service Worker para PWA
-        const serviceWorkerCode = `
-            const CACHE_NAME = 'tallk-radio-v2';
-            const urlsToCache = ['/', 'https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js', 'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js', 'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css'];
-            self.addEventListener('install', e => e.waitUntil(caches.open(CACHE_NAME).then(c => c.addAll(urlsToCache))));
-            self.addEventListener('fetch', e => e.respondWith(caches.match(e.request).then(r => r || fetch(e.request))));
-        `;
-
         class RealRadioSystem {
             constructor() {
                 this.peer = null;
@@ -608,17 +602,18 @@
                 this.setupEventListeners();
                 await this.initWebRTC();
                 this.startSignalSimulation();
-                this.registerServiceWorker();
+                // this.registerServiceWorker(); // DESABILITADO PARA EVITAR ERRO
                 this.setupInstallPrompt();
             }
 
-            registerServiceWorker() {
-                if ('serviceWorker' in navigator) {
-                    const blob = new Blob([serviceWorkerCode], { type: 'application/javascript' });
-                    const swUrl = URL.createObjectURL(blob);
-                    navigator.serviceWorker.register(swUrl).catch(error => console.error('Falha no SW:', error));
-                }
-            }
+            // Função de registro do Service Worker foi desabilitada para evitar o erro TypeError
+            // registerServiceWorker() {
+            //     if ('serviceWorker' in navigator) {
+            //         const blob = new Blob([serviceWorkerCode], { type: 'application/javascript' });
+            //         const swUrl = URL.createObjectURL(blob);
+            //         navigator.serviceWorker.register(swUrl).catch(error => console.error('Falha no SW:', error));
+            //     }
+            // }
 
             setupInstallPrompt() {
                 window.addEventListener('beforeinstallprompt', (e) => {
@@ -696,7 +691,7 @@
                 this.updateStatus('RECEBENDO TRANSMISSÃO');
                 document.getElementById('radioPanel').classList.add('incoming');
                 if ('vibrate' in navigator) {
-                    navigator.vibrate([200, 100, 200, 100, 200]); // Padrão de vibração forte
+                    navigator.vibrate([200, 100, 200, 100, 200]);
                 }
             }
 
