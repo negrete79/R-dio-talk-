@@ -3,8 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-    <title>Tallk Radio - PWA Futurista</title>
-    <meta name="description" content="Sistema de comunicação por rádio baseado em WebRTC. Design futurista e alertas de chamada.">
+    <title>Tallk Radio - Videochamada Futurista</title>
+    <meta name="description" content="Sistema de videochamada baseado em WebRTC. Design futurista e chamadas em alta definição.">
     <meta name="theme-color" content="#0a0e27">
     
     <!-- PWA Meta Tags -->
@@ -15,11 +15,11 @@
     <meta name="msapplication-TileColor" content="#0a0e27">
     
     <!-- Ícones para PWA -->
-    <link rel="apple-touch-icon" href="https://picsum.photos/seed/talkradio-futuristic/192/192.jpg">
-    <link rel="icon" type="image/png" sizes="32x32" href="https://picsum.photos/seed/talkradio-futuristic/32/32.jpg">
+    <link rel="apple-touch-icon" href="https://picsum.photos/seed/talkradio-video/192/192.jpg">
+    <link rel="icon" type="image/png" sizes="32x32" href="https://picsum.photos/seed/talkradio-video/32/32.jpg">
     
     <!-- Manifest JSON embutido -->
-    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiVGFsbGsgUmFkaW8gLSBQV0EgRnV0dXJpc3RhIiwic2hvcnRfbmFtZSI6IlRSYWRpbyIsInRoZW1lX2NvbG9yIjoiIzBhMGUyNyIsImJhY2tncm91bmRfY29sb3IiOiIjMWExYTNkIiwiZGlzcGxheSI6InN0YW5kYWxvbmUiLCJvcmllbnRhdGlvbiI6InBvcnRyYWl0Iiwic2NvcGUiOiIvIiwic3RhcnRfdXJsIjoiLyIsImljb25zIjpbeyJzcmMiOiJodHRwczovL3BpY3N1bS5waG90b3Mvc2VlZC90YWxrcmFkaW8tZnV0dXJpc3RpYy8xOTIvMTkyLmpwZyIsInNpemVzIjoiMTkyeDE5MiIsInR5cGUiOiJpbWFnZS9qcGcifSx7InNyYyI6Imh0dHBzOi8vcGljc3VtLnBob3Rvcy9zZWVkL3RhbGtyYWRpby1mdXR1cmlzdGljLzUxMi81MTIuanBnIiwic2l6ZXMiOiI1MTJ4NTEyIiwidHlwZSI6ImltYWdlL2pwZyJ9XX0=">
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiVGFsbGsgUmFkaW8gLSBWaWRlb2NoYW1hZGEiLCJzaG9ydF9uYW1lIjoiVFZpZGVvIiwidGhlbWVfY29sb3IiOiIjMGEwZTI3IiwiYmFja2dyb3VuZF9jb2xvciI6IiMxYTFhM2QiLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsIm9yaWVudGF0aW9uIjoicG9ydHJhaXQiLCJzY29wZSI6Ii8iLCJzdGFydF91cmwiOiIvIiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vcGljc3VtLnBob3Rvcy9zZWVkL3RhbGtyYWRpby12aWRlby8xOTIvMTkyLmpwZyIsInNpemVzIjoiMTkyeDE5MiIsInR5cGUiOiJpbWFnZS9qcGcifSx7InNyYyI6Imh0dHBzOi8vcGljc3VtLnBob3Rvcy9zZWVkL3RhbGtyYWRpby12aWRlby81MTIvNTEyLmpwZyIsInNpemVzIjoiNTEyeDUxMiIsInR5cGUiOiJpbWFnZS9qcGcifV19">
     
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
     <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
@@ -35,6 +35,8 @@
             --accent-glow: #00ffff88;
             --danger-color: #ff0080;
             --danger-glow: #ff008088;
+            --success-color: #00ff88;
+            --success-glow: #00ff8888;
             --text-primary: #e0e0e0;
             --text-secondary: #a0a0a0;
             --border-color: rgba(0, 255, 255, 0.3);
@@ -54,362 +56,256 @@
             min-height: 100vh;
             display: flex;
             flex-direction: column;
-            overflow-x: hidden;
-            position: relative;
+            overflow: hidden; /* Evita scrollbars em telas de vídeo */
         }
 
-        body::before {
-            content: '';
+        /* Tela de Videochamada */
+        .video-container {
+            position: relative;
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #000;
+        }
+
+        #remoteVideo {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            background: #111;
+        }
+
+        #localVideo {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            border-radius: 15px;
+            border: 2px solid var(--accent-color);
+            box-shadow: 0 0 15px var(--accent-glow);
+            object-fit: cover;
+            background: #222;
+            transition: all 0.3s ease;
+        }
+        #localVideo:hover {
+            transform: scale(1.05);
+            box-shadow: 0 0 25px var(--accent-glow);
+        }
+
+        /* Controles da Chamada */
+        .call-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            padding: 15px 25px;
+            background: var(--bg-panel);
+            backdrop-filter: blur(15px);
+            border-radius: 50px;
+            border: 1px solid var(--border-color);
+            z-index: 10;
+        }
+
+        .control-btn {
+            width: 60px;
+            height: 60px;
+            border-radius: 50%;
+            border: none;
+            cursor: pointer;
+            font-size: 1.5rem;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            transition: all 0.3s ease;
+            color: white;
+        }
+
+        .control-btn:hover {
+            transform: translateY(-5px);
+        }
+
+        .control-btn.mic { background: var(--accent-color); }
+        .control-btn.mic.muted { background: #555; }
+
+        .control-btn.video { background: var(--accent-color); }
+        .control-btn.video.disabled { background: #555; }
+
+        .control-btn.end-call {
+            background: var(--danger-color);
+            width: 70px;
+            height: 70px;
+            font-size: 1.8rem;
+        }
+
+        /* Modal de Chamada Entrante */
+        .incoming-call-modal {
             position: fixed;
             top: 0;
             left: 0;
             width: 100%;
             height: 100%;
-            background-image: 
-                linear-gradient(rgba(10, 14, 39, 0.9) 1px, transparent 1px),
-                linear-gradient(90deg, rgba(10, 14, 39, 0.9) 1px, transparent 1px);
-            background-size: 50px 50px;
-            z-index: -1;
-        }
-
-        header {
-            background: var(--bg-secondary);
-            padding: 15px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border-color);
-            backdrop-filter: blur(10px);
-            z-index: 100;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            font-size: 1.5rem;
-            font-weight: bold;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            color: var(--accent-color);
-            text-shadow: 0 0 10px var(--accent-glow);
-        }
-
-        .logo svg {
-            width: 40px;
-            height: 40px;
-            fill: var(--accent-color);
-            filter: drop-shadow(0 0 5px var(--accent-glow));
-        }
-
-        .install-prompt {
-            position: fixed;
-            bottom: 20px;
-            left: 20px;
-            background: var(--bg-panel);
-            color: var(--text-primary);
-            padding: 15px;
-            border-radius: 10px;
-            box-shadow: 0 0 20px var(--accent-glow);
+            background: rgba(0, 0, 0, 0.8);
             display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
             z-index: 1000;
-            max-width: 300px;
-            backdrop-filter: blur(10px);
-            border: 1px solid var(--border-color);
+            backdrop-filter: blur(5px);
         }
 
-        .install-prompt.show { display: block; animation: slideIn 0.5s ease; }
-        @keyframes slideIn { from { transform: translateX(-100%); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+        .incoming-call-modal.show {
+            display: flex;
+            animation: fadeIn 0.5s ease;
+        }
 
-        .install-prompt h3 { margin-bottom: 10px; font-size: 1.1rem; color: var(--accent-color); }
-        .install-prompt p { margin-bottom: 15px; font-size: 0.9rem; color: var(--text-secondary); }
-        .install-prompt button {
-            background: var(--accent-color);
-            color: var(--bg-primary);
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .incoming-call-content {
+            text-align: center;
+            color: white;
+        }
+
+        .incoming-call-content h2 {
+            font-size: 2.5rem;
+            margin-bottom: 10px;
+            color: var(--accent-color);
+            text-shadow: 0 0 20px var(--accent-glow);
+        }
+
+        .incoming-call-content p {
+            font-size: 1.2rem;
+            margin-bottom: 40px;
+            color: var(--text-secondary);
+        }
+
+        .incoming-call-actions {
+            display: flex;
+            gap: 30px;
+        }
+
+        .action-btn {
+            padding: 15px 30px;
+            font-size: 1.2rem;
             border: none;
-            padding: 8px 15px;
-            border-radius: 5px;
+            border-radius: 50px;
             cursor: pointer;
             font-weight: bold;
-            margin-right: 10px;
-            transition: all 0.3s ease;
-        }
-        .install-prompt button:hover { box-shadow: 0 0 15px var(--accent-glow); }
-        .install-prompt button.dismiss { background: transparent; border: 1px solid var(--border-color); }
-
-        main {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            padding: 20px;
-            max-width: 1400px;
-            width: 100%;
-            margin: 0 auto;
-        }
-
-        .connection-tabs {
-            display: flex;
-            margin-bottom: 20px;
-            background: var(--bg-panel);
-            border-radius: 10px;
-            overflow: hidden;
-            border: 1px solid var(--border-color);
-        }
-
-        .tab-button {
-            flex: 1;
-            padding: 15px;
-            background: none;
-            border: none;
-            color: var(--text-secondary);
-            cursor: pointer;
-            transition: all 0.3s ease;
-            font-weight: 500;
             text-transform: uppercase;
             letter-spacing: 1px;
+            transition: all 0.3s ease;
+            color: white;
         }
 
-        .tab-button.active {
-            background: var(--accent-color);
-            color: var(--bg-primary);
-            box-shadow: 0 0 15px var(--accent-glow);
+        .action-btn.answer {
+            background: var(--success-color);
+            box-shadow: 0 0 20px var(--success-glow);
         }
 
-        .tab-content { display: none; animation: fadeIn 0.5s ease; }
-        .tab-content.active { display: block; }
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+        .action-btn.decline {
+            background: var(--danger-color);
+            box-shadow: 0 0 20px var(--danger-glow);
+        }
 
-        .container {
-            display: grid;
-            grid-template-columns: 1fr 2fr 1fr;
-            gap: 20px;
+        .action-btn:hover {
+            transform: translateY(-3px);
+        }
+
+        /* Tela Principal (antes da chamada) */
+        .main-screen {
+            display: flex;
+            flex-direction: column;
             flex: 1;
+            padding: 20px;
+            max-width: 900px;
+            width: 100%;
+            margin: 0 auto;
+            justify-content: center;
         }
 
         .panel {
             background: var(--bg-panel);
             backdrop-filter: blur(10px);
             border-radius: 20px;
-            padding: 20px;
+            padding: 30px;
             border: 1px solid var(--border-color);
-            overflow-y: auto;
-            height: 100%;
-            transition: border-color 0.3s ease;
+            text-align: center;
         }
 
         .panel h2 {
             color: var(--text-primary);
-            margin-bottom: 20px;
+            margin-bottom: 25px;
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 10px;
             text-transform: uppercase;
             letter-spacing: 1px;
         }
 
-        /* Painel Central - Rádio */
-        .radio-panel {
+        .connect-input {
             display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            position: relative;
-            overflow: hidden;
-            box-shadow: 0 0 30px var(--accent-glow);
-        }
-
-        .radio-panel.incoming {
-            animation: incomingAlert 0.5s infinite alternate;
-            border-color: var(--danger-color);
-            box-shadow: 0 0 30px var(--danger-glow);
-        }
-
-        @keyframes incomingAlert {
-            from { box-shadow: 0 0 20px var(--danger-glow); }
-            to { box-shadow: 0 0 40px var(--danger-glow); }
-        }
-
-        .radio-display {
-            background: #050a1a;
-            border-radius: 15px;
-            padding: 20px;
-            margin-bottom: 30px;
-            width: 100%;
-            max-width: 350px;
-            text-align: center;
-            position: relative;
-            z-index: 1;
-            border: 2px solid var(--accent-color);
-            box-shadow: inset 0 0 15px var(--accent-glow);
-        }
-
-        .frequency {
-            color: var(--accent-color);
-            font-family: 'Courier New', monospace;
-            font-size: 28px;
-            font-weight: bold;
-            text-shadow: 0 0 15px var(--accent-glow);
-            margin-bottom: 10px;
-        }
-
-        .channel-info {
-            color: var(--text-secondary);
-            font-size: 14px;
-            margin-bottom: 15px;
-        }
-
-        .signal-strength {
-            display: flex;
-            gap: 3px;
-            justify-content: center;
-            margin-bottom: 15px;
-        }
-
-        .signal-bar {
-            width: 5px;
-            height: 25px;
-            background: #333;
-            border-radius: 2px;
-            transition: all 0.3s ease;
-        }
-        .signal-bar.active {
-            background: var(--accent-color);
-            box-shadow: 0 0 8px var(--accent-glow);
-        }
-
-        #status {
-            color: var(--accent-color);
-            font-size: 14px;
-            font-family: 'Courier New', monospace;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-        }
-
-        .ptt-button {
-            width: 180px;
-            height: 180px;
-            border-radius: 50%;
-            background: radial-gradient(circle, var(--danger-color), #8b0045);
-            border: 3px solid var(--danger-color);
-            color: white;
-            font-size: 20px;
-            font-weight: bold;
-            cursor: pointer;
-            position: relative;
-            z-index: 1;
-            transition: all 0.3s ease;
-            box-shadow: 0 0 30px var(--danger-glow);
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            gap: 10px;
-            text-transform: uppercase;
-            letter-spacing: 2px;
-            touch-action: manipulation;
-        }
-
-        .ptt-button:hover:not(:disabled) { transform: translateY(-5px); box-shadow: 0 0 40px var(--danger-glow); }
-        .ptt-button:active:not(:disabled) { transform: translateY(-2px); }
-        .ptt-button:disabled { opacity: 0.5; cursor: not-allowed; box-shadow: none; }
-        .ptt-button.transmitting {
-            background: radial-gradient(circle, #ffaa00, #ff6600);
-            border-color: #ffaa00;
-            animation: transmitting-pulse 1s infinite;
-            box-shadow: 0 0 40px #ffaa0088;
-        }
-
-        @keyframes transmitting-pulse {
-            0% { box-shadow: 0 0 0 0 rgba(255, 170, 0, 0.7); }
-            70% { box-shadow: 0 0 0 25px rgba(255, 170, 0, 0); }
-            100% { box-shadow: 0 0 0 0 rgba(255, 170, 0, 0); }
-        }
-
-        .volume-control {
-            margin-top: 30px;
-            display: flex;
-            align-items: center;
             gap: 15px;
+            margin-bottom: 20px;
+        }
+
+        .connect-input input {
+            flex: 1;
+            padding: 15px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--bg-secondary);
             color: var(--text-primary);
-            position: relative;
-            z-index: 1;
+            font-family: monospace;
+            font-size: 1rem;
         }
 
-        .volume-slider {
-            width: 150px;
-            height: 8px;
-            background: rgba(255, 255, 255, 0.2);
-            border-radius: 5px;
-            outline: none;
-            -webkit-appearance: none;
-        }
-        .volume-slider::-webkit-slider-thumb {
-            -webkit-appearance: none;
-            width: 20px;
-            height: 20px;
+        .call-btn {
+            padding: 15px 30px;
             background: var(--accent-color);
-            border-radius: 50%;
+            color: var(--bg-primary);
+            border: none;
+            border-radius: 10px;
             cursor: pointer;
-            box-shadow: 0 0 10px var(--accent-glow);
+            font-weight: bold;
+            font-size: 1.1rem;
+            transition: all 0.3s ease;
+            text-transform: uppercase;
+            letter-spacing: 1px;
         }
 
-        .user-item, .history-item {
+        .call-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 0 15px var(--accent-glow);
+        }
+
+        .your-id-display {
             background: var(--bg-secondary);
             border-radius: 10px;
-            padding: 15px;
+            padding: 20px;
+            margin-top: 20px;
+        }
+
+        .your-id-display h3 {
             margin-bottom: 10px;
-            transition: all 0.3s ease;
+            color: var(--accent-color);
         }
 
-        .user-item {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            cursor: pointer;
-        }
-        .user-item:hover { background: rgba(0, 255, 255, 0.1); transform: translateX(5px); }
-
-        .user-avatar {
-            width: 40px;
-            height: 40px;
-            border-radius: 50%;
-            background: linear-gradient(45deg, var(--danger-color), var(--accent-color));
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            color: white;
-            font-weight: bold;
+        .your-id {
+            color: var(--accent-color);
+            font-family: 'Courier New', monospace;
+            font-size: 1.1rem;
+            word-break: break-all;
         }
 
-        .user-info { flex: 1; }
-        .user-name { color: var(--text-primary); font-weight: 500; }
-        .user-status { font-size: 12px; color: var(--text-secondary); }
-        .status-indicator {
-            width: 10px;
-            height: 10px;
-            border-radius: 50%;
-            background: var(--accent-color);
-            animation: pulse 2s infinite;
-        }
-        .status-indicator.speaking {
-            background: var(--danger-color);
-            animation: speaking-pulse 0.5s infinite;
-        }
-        @keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
-        @keyframes speaking-pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.5); opacity: 0.7; } }
-
-        .history-item:hover { background: rgba(0, 255, 255, 0.05); }
-        .history-time { color: var(--text-secondary); font-size: 12px; margin-bottom: 5px; }
-        .history-user { color: var(--accent-color); font-weight: 500; margin-bottom: 5px; }
-        .history-message { color: var(--text-primary); font-size: 14px; }
-
-        .tab-inner-content {
-            background: var(--bg-panel);
-            backdrop-filter: blur(10px);
-            border-radius: 20px;
-            padding: 30px;
-            border: 1px solid var(--border-color);
-            text-align: center;
+        .share-link-container {
+            margin-top: 20px;
         }
 
         #qrcode {
@@ -420,13 +316,13 @@
             display: inline-block;
         }
 
-        .share-link-input, .connect-input {
+        .share-link-input {
             display: flex;
             gap: 10px;
             margin-top: 20px;
         }
 
-        .share-link-input input, .connect-input input {
+        .share-link-input input {
             flex: 1;
             padding: 12px;
             border-radius: 10px;
@@ -436,7 +332,7 @@
             font-family: monospace;
         }
 
-        .share-link-input button, .connect-btn, .reconnect-btn {
+        .share-link-input button {
             padding: 12px 20px;
             background: var(--accent-color);
             color: var(--bg-primary);
@@ -448,25 +344,23 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
-        .share-link-input button:hover, .connect-btn:hover, .reconnect-btn:hover { transform: translateY(-2px); box-shadow: 0 0 15px var(--accent-glow); }
-        
-        .reconnect-btn {
-            background: var(--warning-color);
-            margin-top: 15px;
-        }
+        .share-link-input button:hover { transform: translateY(-2px); box-shadow: 0 0 15px var(--accent-glow); }
 
-        .your-id-display {
-            background: var(--bg-secondary);
-            border-radius: 10px;
-            padding: 15px;
-            margin-top: 20px;
-        }
-        .your-id-display h3 { margin-bottom: 10px; color: var(--accent-color); }
-        .your-id {
-            color: var(--accent-color);
+        /* Status e Notificações */
+        .status-bar {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            padding: 10px 20px;
+            background: var(--bg-panel);
+            border-radius: 20px;
+            border: 1px solid var(--border-color);
+            color: var(--text-primary);
             font-family: 'Courier New', monospace;
-            font-size: 16px;
-            word-break: break-all;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            z-index: 5;
         }
 
         .notification {
@@ -486,44 +380,52 @@
         }
         .notification.show { transform: translateX(0); }
         .notification.error { border-color: var(--danger-color); box-shadow: 0 0 20px var(--danger-glow); }
-        .notification.warning { border-color: var(--warning-color); box-shadow: 0 0 20px var(--warning-color); }
+        .notification.success { border-color: var(--success-color); box-shadow: 0 0 20px var(--success-glow); }
 
         /* Responsividade */
-        @media (max-width: 968px) {
-            .container { grid-template-columns: 1fr; grid-template-rows: auto 1fr auto; gap: 15px; }
-            .users-panel, .history-panel { max-height: 200px; }
-            .radio-panel { min-height: 500px; }
-            .ptt-button { width: 150px; height: 150px; font-size: 18px; }
-        }
-        @media (max-width: 480px) {
-            header { padding: 10px; }
-            .logo { font-size: 1.2rem; }
-            main { padding: 10px; }
-            .tab-button { font-size: 0.9rem; padding: 12px; }
+        @media (max-width: 768px) {
+            #localVideo {
+                width: 120px;
+                height: 90px;
+                bottom: 80px; /* Espaço para os controles */
+            }
+            .call-controls {
+                bottom: 10px;
+                gap: 15px;
+                padding: 10px 20px;
+            }
+            .control-btn {
+                width: 50px;
+                height: 50px;
+                font-size: 1.2rem;
+            }
+            .control-btn.end-call {
+                width: 60px;
+                height: 60px;
+                font-size: 1.5rem;
+            }
+            .incoming-call-content h2 { font-size: 2rem; }
+            .incoming-call-actions { gap: 20px; }
+            .action-btn { padding: 12px 25px; font-size: 1rem; }
         }
     </style>
 </head>
 <body>
-    <header>
-        <div class="logo">
-            <!-- SVG de um rádio comunicador -->
-            <svg viewBox="0 0 24 24" fill="currentColor">
-                <path d="M7.2,11.2C6.5,11.2 6,11.7 6,12.5C6,13.3 6.5,13.8 7.2,13.8C8,13.8 8.5,13.3 8.5,12.5C8.5,11.7 8,11.2 7.2,11.2M15,11.2C14.2,11.2 13.7,11.7 13.7,12.5C13.7,13.3 14.2,13.8 15,13.8C15.8,13.8 16.3,13.3 16.3,12.5C16.3,11.7 15.8,11.2 15,11.2M20.5,8.5L19.4,7.4L16.2,10.6L15,9.4L13.8,10.6L15.6,12.4L14.5,13.5L13.3,12.3L12.1,13.5L13.3,14.7L12.2,15.8L11,14.6L9.8,15.8L11,17L9.9,18.1L8.7,16.9L7.5,18.1L8.7,19.3L7.2,20.8L8.3,22L11.5,18.8L12.7,20L13.9,18.8L12.1,17L13.2,15.9L14.4,17.1L15.6,15.9L14.4,14.7L15.5,13.6L16.7,14.8L17.9,13.6L16.7,12.4L17.8,11.3L19,12.5L20.2,11.3L19,10.1L20.5,8.5M8.5,6.5L7.4,5.4L4.2,8.6L3,7.4L1.8,8.6L3.6,10.4L2.5,11.5L1.3,10.3L0.1,11.5L1.3,12.7L0.2,13.8L-1,12.6L-2.2,13.8L-1,15L-2.1,16.1L-3.3,14.9L-4.5,16.1L-3.3,17.3L-4.8,18.8L-3.7,20L-0.5,16.8L0.7,18L1.9,16.8L0.1,15L1.2,13.9L2.4,15.1L3.6,13.9L2.4,12.7L3.5,11.6L4.7,12.8L5.9,11.6L4.7,10.4L5.8,9.3L7,10.5L8.2,9.3L7,8.1L8.5,6.5Z" transform="scale(0.8) translate(5, 2)"/>
-            </svg>
-            <span>Tallk Radio</span>
-        </div>
-    </header>
 
-    <main>
-        <div class="connection-tabs">
-            <button class="tab-button active" data-tab="room"><i class="fas fa-users"></i> Conectar por Sala</button>
-            <button class="tab-button" data-tab="direct"><i class="fas fa-link"></i> Conexão Direta</button>
-        </div>
-
-        <div class="tab-content active" id="room-tab">
-            <div class="tab-inner-content">
-                <h2>Crie uma Sala de Comunicação</h2>
-                <p style="color: var(--text-secondary); margin-top: 10px;">Compartilhe o link ou o QR Code para outros se conectarem.</p>
+    <!-- Tela Principal (Antes da Chamada) -->
+    <div class="main-screen" id="mainScreen">
+        <div class="panel">
+            <h2><i class="fas fa-video"></i> Iniciar Videochamada</h2>
+            <div class="connect-input">
+                <input type="text" id="remoteId" placeholder="Digite o ID para ligar">
+                <button class="call-btn" id="callBtn">Ligar</button>
+            </div>
+            <div class="your-id-display">
+                <h3>Seu ID de Chamada:</h3>
+                <div class="your-id" id="yourId">Gerando...</div>
+            </div>
+            <div class="share-link-container">
+                <p style="color: var(--text-secondary); margin-bottom: 10px;">Compartilhe seu link para receber chamadas:</p>
                 <div id="qrcode"></div>
                 <div class="share-link-input">
                     <input type="text" id="shareableLink" readonly>
@@ -531,349 +433,245 @@
                 </div>
             </div>
         </div>
-
-        <div class="tab-content" id="direct-tab">
-            <div class="tab-inner-content">
-                <div class="connect-panel">
-                    <h2>Conexão Direta por ID</h2>
-                    <div class="connect-input">
-                        <input type="text" id="remoteId" placeholder="Cole o ID do outro rádio aqui">
-                        <button class="connect-btn" id="connectBtn">Conectar</button>
-                    </div>
-                    <button class="reconnect-btn" id="reconnectBtn" style="display: none;">
-                        <i class="fas fa-redo"></i> Tentar Reconectar
-                    </button>
-                </div>
-                <div class="your-id-display">
-                    <h3>Seu ID de Conexão:</h3>
-                    <div class="your-id" id="yourId">Gerando...</div>
-                </div>
-            </div>
-        </div>
-
-        <div class="container">
-            <div class="panel users-panel">
-                <h2><i class="fas fa-users"></i> Usuários Conectados</h2>
-                <div id="usersList"></div>
-            </div>
-
-            <div class="panel radio-panel" id="radioPanel">
-                <div class="radio-display">
-                    <div class="frequency" id="frequency">146.520 MHz</div>
-                    <div class="channel-info">Canal: <span id="channel">1</span> | Banda: VHF</div>
-                    <div class="signal-strength" id="signalStrength">
-                        <div class="signal-bar"></div><div class="signal-bar"></div><div class="signal-bar"></div><div class="signal-bar"></div><div class="signal-bar"></div>
-                    </div>
-                    <div id="status">INICIALIZANDO...</div>
-                </div>
-                <button class="ptt-button" id="pttButton" disabled>
-                    <i class="fas fa-microphone"></i>
-                    <span>PTT</span>
-                </button>
-                <div class="volume-control">
-                    <i class="fas fa-volume-down"></i>
-                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="70">
-                    <i class="fas fa-volume-up"></i>
-                </div>
-            </div>
-
-            <div class="panel history-panel">
-                <h2><i class="fas fa-history"></i> Histórico de Transmissões</h2>
-                <div id="historyList"></div>
-            </div>
-        </div>
-    </main>
-
-    <div class="install-prompt" id="installPrompt">
-        <h3><i class="fas fa-download"></i> Instalar App</h3>
-        <p>Para uma experiência melhor e acesso rápido, instale o Tallk Radio.</p>
-        <button id="installBtn">Instalar</button>
-        <button class="dismiss" id="dismissBtn">Agora não</button>
     </div>
 
+    <!-- Tela de Videochamada (Durante a Chamada) -->
+    <div class="video-container" id="videoContainer" style="display: none;">
+        <video id="remoteVideo" autoplay playsinline></video>
+        <video id="localVideo" autoplay playsinline muted></video>
+        <div class="status-bar" id="statusBar">AGUARDANDO</div>
+        <div class="call-controls">
+            <button class="control-btn mic" id="micBtn" title="Mutar/Desmutar">
+                <i class="fas fa-microphone"></i>
+            </button>
+            <button class="control-btn video" id="videoBtn" title="Ligar/Desligar Câmera">
+                <i class="fas fa-video"></i>
+            </button>
+            <button class="control-btn end-call" id="endCallBtn" title="Desligar">
+                <i class="fas fa-phone-slash"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Modal de Chamada Entrante -->
+    <div class="incoming-call-modal" id="incomingCallModal">
+        <div class="incoming-call-content">
+            <h2><i class="fas fa-phone-volume"></i></h2>
+            <p>Chamada entrante de <span id="callerId">...</span></p>
+            <div class="incoming-call-actions">
+                <button class="action-btn answer" id="answerBtn">
+                    <i class="fas fa-phone"></i> Atender
+                </button>
+                <button class="action-btn decline" id="declineBtn">
+                    <i class="fas fa-phone-slash"></i> Recusar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Notificação -->
     <div class="notification" id="notification"></div>
 
     <script>
-        class RealRadioSystem {
+        class VideoCallSystem {
             constructor() {
                 this.peer = null;
-                this.connections = new Map();
                 this.localStream = null;
-                this.isTransmitting = false;
-                this.userName = 'Operador-' + Math.floor(Math.random() * 1000);
-                this.history = [];
-                this.installPromptEvent = null;
+                this.currentCall = null;
+                this.isInCall = false;
+                this.userName = 'User-' + Math.floor(Math.random() * 1000);
                 this.init();
             }
-            
+
             async init() {
                 this.setupEventListeners();
                 await this.initializePeer();
-                this.startSignalSimulation();
-                this.setupInstallPrompt();
             }
 
-            // Função robusta para inicializar o PeerJS
             async initializePeer() {
-                this.updateStatus('Conectando ao servidor de rádio...');
-                this.destroyPeer(); // Garante que não haja instâncias antigas
-
-                // Lista de servidores STUN/TURN para maior robustez
-                const iceServers = [
-                    { urls: 'stun:stun.l.google.com:19302' },
-                    { urls: 'stun:stun1.l.google.com:19302' },
-                    { urls: 'stun:stun2.l.google.com:19302' },
-                    { urls: 'stun:stun3.l.google.com:19302' },
-                    { urls: 'stun:stun4.l.google.com:19302' },
-                    // Adicionando mais servidores públicos para redundância
-                    { urls: 'stun:stun.stunprotocol.org:3478' },
-                    { urls: 'stun:stun.sipgate.net:10000' },
-                ];
-
+                this.updateStatus('Conectando ao servidor...');
                 try {
                     this.peer = new Peer({ 
                         debug: 2,
-                        config: { iceServers: iceServers }
+                        config: { iceServers: [
+                            { urls: 'stun:stun.l.google.com:19302' },
+                            { urls: 'stun:stun.stunprotocol.org:3478' }
+                        ]}
                     });
                     
                     this.peer.on('open', (id) => {
                         document.getElementById('yourId').textContent = id;
                         this.updateShareableLink(id);
-                        this.addToHistory('Sistema', 'Rádio Online. ID: ' + id.substring(0, 8) + '...');
                         this.updateStatus('PRONTO');
-                        this.showNotification('Rádio Online. Compartilhe seu ID para conectar.', 'success');
-                        document.getElementById('reconnectBtn').style.display = 'none';
-                        
-                        const urlParams = new URLSearchParams(window.location.search);
-                        const remotePeerId = urlParams.get('room');
-                        if (remotePeerId && remotePeerId !== id) {
-                            this.updateStatus('Conectando automaticamente...');
-                            this.connectToPeer(remotePeerId);
-                        }
+                        this.showNotification('Online. Compartilhe seu ID para receber chamadas.', 'success');
                     });
 
                     this.peer.on('error', (err) => {
                         console.error('PeerJS Error:', err);
                         this.updateStatus('ERRO DE CONEXÃO');
-                        this.showNotification(`Erro: Falha ao conectar. Verifique sua internet ou tente reconectar.`, 'error');
-                        document.getElementById('reconnectBtn').style.display = 'block';
+                        this.showNotification(`Erro de conexão: ${err.type}`, 'error');
                     });
                     
                     this.peer.on('call', async (call) => {
-                        this.handleIncomingTransmission();
-                        if (!this.localStream) {
-                            await this.getMediaStream();
-                        }
-                        call.answer(this.localStream);
+                        // Recebendo uma chamada
+                        this.currentCall = call;
+                        document.getElementById('callerId').textContent = call.peer.substring(0, 8) + '...';
+                        document.getElementById('incomingCallModal').classList.add('show');
                         
-                        call.on('stream', (remoteStream) => this.playRemoteAudio(remoteStream));
-                        call.on('close', () => this.stopIncomingTransmission());
+                        // Vibração para notificar
+                        if ('vibrate' in navigator) {
+                            navigator.vibrate([200, 100, 200]);
+                        }
                     });
-                    
-                    this.peer.on('connection', (conn) => this.handleDataConnection(conn));
 
                 } catch (error) {
                     console.error('Erro ao inicializar WebRTC:', error);
                     this.updateStatus('FALHA CRÍTICA');
-                    this.showNotification('Falha ao inicializar o rádio.', 'error');
-                    document.getElementById('reconnectBtn').style.display = 'block';
+                    this.showNotification('Falha ao inicializar a câmera.', 'error');
                 }
             }
 
-            destroyPeer() {
-                if (this.peer) {
-                    this.peer.disconnect();
-                    this.peer.destroy();
-                    this.peer = null;
+            async startCall() {
+                const remoteId = document.getElementById('remoteId').value.trim();
+                if (!remoteId || !this.peer) {
+                    this.showNotification('ID inválido ou rádio não está pronto.', 'error');
+                    return;
                 }
+                if (remoteId === this.peer.id) {
+                    this.showNotification('Você não pode ligar para si mesmo.', 'warning');
+                    return;
+                }
+
+                if (!this.localStream) {
+                    await this.getMediaStream();
+                }
+
+                this.updateStatus(`Ligando para ${remoteId.substring(0,8)}...`);
+                this.showVideoScreen();
+
+                const call = this.peer.call(remoteId, this.localStream);
+                this.currentCall = call;
+                this.setupCallEvents(call);
             }
 
-            setupInstallPrompt() {
-                window.addEventListener('beforeinstallprompt', (e) => {
-                    e.preventDefault();
-                    this.installPromptEvent = e;
-                    document.getElementById('installPrompt').classList.add('show');
+            async answerCall() {
+                if (!this.localStream) {
+                    await this.getMediaStream();
+                }
+                this.currentCall.answer(this.localStream);
+                this.setupCallEvents(this.currentCall);
+                document.getElementById('incomingCallModal').classList.remove('show');
+                this.showVideoScreen();
+                this.showNotification('Chamada atendida.', 'success');
+            }
+
+            declineCall() {
+                if (this.currentCall) {
+                    this.currentCall.close();
+                }
+                document.getElementById('incomingCallModal').classList.remove('show');
+                this.currentCall = null;
+            }
+
+            setupCallEvents(call) {
+                call.on('stream', (remoteStream) => {
+                    const remoteVideo = document.getElementById('remoteVideo');
+                    remoteVideo.srcObject = remoteStream;
+                    this.isInCall = true;
+                    this.updateStatus('EM CHAMADA');
                 });
-                document.getElementById('installBtn').addEventListener('click', () => {
-                    if (this.installPromptEvent) {
-                        this.installPromptEvent.prompt();
-                        this.installPromptEvent.userChoice.then(() => {
-                            this.installPromptEvent = null;
-                            document.getElementById('installPrompt').classList.remove('show');
-                        });
-                    }
+
+                call.on('close', () => {
+                    this.endCall();
                 });
-                document.getElementById('dismissBtn').addEventListener('click', () => {
-                    document.getElementById('installPrompt').classList.remove('show');
+
+                call.on('error', (err) => {
+                    console.error('Erro na chamada:', err);
+                    this.showNotification('Erro na chamada.', 'error');
+                    this.endCall();
                 });
             }
 
-            handleIncomingTransmission() {
-                this.updateStatus('RECEBENDO TRANSMISSÃO');
-                document.getElementById('radioPanel').classList.add('incoming');
-                if ('vibrate' in navigator) {
-                    navigator.vibrate([200, 100, 200, 100, 200]);
-                }
-            }
-
-            stopIncomingTransmission() {
-                if (!this.isTransmitting) {
-                    this.updateStatus('PRONTO');
-                }
-                document.getElementById('radioPanel').classList.remove('incoming');
-            }
-            
             async getMediaStream() {
-                this.updateStatus('Solicitando acesso ao microfone...');
                 try {
+                    // Solicitando vídeo em alta resolução (até 1080p)
                     this.localStream = await navigator.mediaDevices.getUserMedia({ 
-                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
-                        video: false 
+                        video: { 
+                            width: { ideal: 1920 },
+                            height: { ideal: 1080 },
+                            facingMode: "user"
+                        }, 
+                        audio: { 
+                            echoCancellation: true, 
+                            noiseSuppression: true, 
+                            autoGainControl: true 
+                        }
                     });
-                    document.getElementById('pttButton').disabled = false;
-                    this.updateStatus('PRONTO');
+                    const localVideo = document.getElementById('localVideo');
+                    localVideo.srcObject = this.localStream;
                 } catch (error) {
-                    console.error('Erro ao acessar microfone:', error);
-                    this.updateStatus('MICROFONE BLOQUEADO');
-                    this.showNotification('Erro: Acesso ao microfone negado. Verifique as permissões do navegador.', 'error');
+                    console.error('Erro ao acessar mídia:', error);
+                    this.showNotification('Erro: Permita o acesso à câmera e ao microfone.', 'error');
                     throw error;
                 }
             }
-            
-            async startTransmission() {
-                if (this.isTransmitting || this.connections.size === 0) {
-                    if (this.connections.size === 0) this.showNotification('Nenhum usuário conectado.', 'warning');
-                    return;
+
+            endCall() {
+                if (this.currentCall) {
+                    this.currentCall.close();
                 }
+                this.currentCall = null;
+                this.isInCall = false;
                 
-                this.isTransmitting = true;
-                this.localStream.getTracks().forEach(track => track.enabled = true);
-                this.connections.forEach((conn, peerId) => this.peer.call(peerId, this.localStream));
+                // Para os vídeos
+                document.getElementById('remoteVideo').srcObject = null;
+                // Não paramos o localStream para facilitar a próxima chamada
                 
-                this.updatePTTUI(true);
-                this.updateStatus('TRANSMITINDO');
-                this.addToHistory(this.userName, 'Iniciou transmissão');
-            }
-            
-            stopTransmission() {
-                if (!this.isTransmitting) return;
-                
-                this.isTransmitting = false;
-                if (this.localStream) {
-                    this.localStream.getTracks().forEach(track => track.enabled = false);
-                }
-                
-                this.updatePTTUI(false);
-                this.updateStatus('PRONTO');
-                this.addToHistory(this.userName, 'Encerrou transmissão');
+                this.showMainScreen();
+                this.updateStatus('CHAMADA ENCERRADA');
+                this.showNotification('Chamada encerrada.', 'success');
             }
 
-            updatePTTUI(transmitting) {
-                const pttButton = document.getElementById('pttButton');
-                if (transmitting) {
-                    pttButton.classList.add('transmitting');
-                    pttButton.innerHTML = '<i class="fas fa-broadcast-tower"></i><span>TX</span>';
-                } else {
-                    pttButton.classList.remove('transmitting');
-                    pttButton.innerHTML = '<i class="fas fa-microphone"></i><span>PTT</span>';
+            toggleMic() {
+                const audioTrack = this.localStream.getAudioTracks()[0];
+                if (audioTrack) {
+                    audioTrack.enabled = !audioTrack.enabled;
+                    const micBtn = document.getElementById('micBtn');
+                    micBtn.innerHTML = audioTrack.enabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
+                    micBtn.classList.toggle('muted', !audioTrack.enabled);
                 }
             }
-            
-            playRemoteAudio(stream) {
-                const audio = new Audio();
-                audio.srcObject = stream;
-                audio.autoplay = true;
-                audio.volume = document.getElementById('volumeSlider').value / 100;
-            }
-            
-            connectToPeer(remoteId) {
-                if (!remoteId || remoteId === this.peer.id) {
-                    this.showNotification('ID inválido ou é o seu próprio ID.', 'error');
-                    return;
-                }
-                this.updateStatus(`Conectando com ${remoteId.substring(0,8)}...`);
-                try {
-                    const conn = this.peer.connect(remoteId);
-                    this.handleDataConnection(conn);
-                    this.addToHistory('Sistema', `Tentando conectar com ${remoteId.substring(0, 8)}...`);
-                } catch (error) {
-                    console.error('Erro ao conectar:', error);
-                    this.showNotification('Erro ao iniciar conexão.', 'error');
-                    this.updateStatus('ERRO');
-                }
-            }
-            
-            handleDataConnection(conn) {
-                conn.on('open', () => {
-                    this.connections.set(conn.peer, conn);
-                    this.updateUserList();
-                    this.addToHistory('Sistema', `Conectado com ${conn.peer.substring(0, 8)}...`);
-                    this.showNotification('Conectado com sucesso!', 'success');
-                    this.updateStatus('CONECTADO');
-                });
-                
-                conn.on('close', () => {
-                    this.connections.delete(conn.peer);
-                    this.updateUserList();
-                    this.addToHistory('Sistema', `Desconectado de ${conn.peer.substring(0, 8)}.`);
-                    if (this.connections.size === 0) {
-                        this.updateStatus('PRONTO');
-                    }
-                });
 
-                conn.on('open', () => conn.send({ type: 'user_info', name: this.userName }));
+            toggleVideo() {
+                const videoTrack = this.localStream.getVideoTracks()[0];
+                if (videoTrack) {
+                    videoTrack.enabled = !videoTrack.enabled;
+                    const videoBtn = document.getElementById('videoBtn');
+                    videoBtn.innerHTML = videoTrack.enabled ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
+                    videoBtn.classList.toggle('disabled', !videoTrack.enabled);
+                }
             }
-            
-            updateUserList() {
-                const usersList = document.getElementById('usersList');
-                usersList.innerHTML = '';
-                
-                const localUser = document.createElement('div');
-                localUser.className = 'user-item';
-                localUser.innerHTML = `<div class="user-avatar">${this.userName.charAt(0)}</div><div class="user-info"><div class="user-name">${this.userName} (Você)</div><div class="user-status">Online</div></div><div class="status-indicator"></div>`;
-                usersList.appendChild(localUser);
-                
-                this.connections.forEach((conn, peerId) => {
-                    const userElement = document.createElement('div');
-                    userElement.className = 'user-item';
-                    userElement.innerHTML = `<div class="user-avatar">U</div><div class="user-info"><div class="user-name">Usuário ${peerId.substring(0, 4)}</div><div class="user-status">Conectado</div></div><div class="status-indicator"></div>`;
-                    usersList.appendChild(userElement);
-                });
+
+            showVideoScreen() {
+                document.getElementById('mainScreen').style.display = 'none';
+                document.getElementById('videoContainer').style.display = 'flex';
+            }
+
+            showMainScreen() {
+                document.getElementById('videoContainer').style.display = 'none';
+                document.getElementById('mainScreen').style.display = 'flex';
             }
             
             setupEventListeners() {
-                const pttButton = document.getElementById('pttButton');
-                pttButton.addEventListener('mousedown', () => this.startTransmission());
-                pttButton.addEventListener('mouseup', () => this.stopTransmission());
-                pttButton.addEventListener('mouseleave', () => this.stopTransmission());
-                pttButton.addEventListener('touchstart', (e) => { e.preventDefault(); this.startTransmission(); });
-                pttButton.addEventListener('touchend', (e) => { e.preventDefault(); this.stopTransmission(); });
+                document.getElementById('callBtn').addEventListener('click', () => this.startCall());
+                document.getElementById('answerBtn').addEventListener('click', () => this.answerCall());
+                document.getElementById('declineBtn').addEventListener('click', () => this.declineCall());
+                document.getElementById('endCallBtn').addEventListener('click', () => this.endCall());
+                document.getElementById('micBtn').addEventListener('click', () => this.toggleMic());
+                document.getElementById('videoBtn').addEventListener('click', () => this.toggleVideo());
                 
-                document.getElementById('connectBtn').addEventListener('click', () => {
-                    const remoteId = document.getElementById('remoteId').value.trim();
-                    if (remoteId) this.connectToPeer(remoteId);
-                });
-
                 document.getElementById('remoteId').addEventListener('keypress', (e) => {
-                    if (e.key === 'Enter') {
-                        const remoteId = e.target.value.trim();
-                        if (remoteId) this.connectToPeer(remoteId);
-                    }
-                });
-
-                // Listener para o botão de reconectar
-                document.getElementById('reconnectBtn').addEventListener('click', () => {
-                    this.updateStatus('Tentando reconectar...');
-                    this.initializePeer();
-                });
-                
-                document.querySelectorAll('.tab-button').forEach(button => {
-                    button.addEventListener('click', () => {
-                        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
-                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
-                        button.classList.add('active');
-                        document.getElementById(`${button.dataset.tab}-tab`).classList.add('active');
-                    });
+                    if (e.key === 'Enter') this.startCall();
                 });
 
                 document.getElementById('copyLinkBtn').addEventListener('click', () => {
@@ -882,31 +680,8 @@
                     document.execCommand('copy');
                     this.showNotification('Link copiado!', 'success');
                 });
-
-                document.getElementById('volumeSlider').addEventListener('input', (e) => {
-                    const volume = e.target.value / 100;
-                    document.querySelectorAll('audio').forEach(audio => audio.volume = volume);
-                });
             }
             
-            addToHistory(user, message) {
-                const time = new Date().toLocaleTimeString('pt-BR');
-                this.history.unshift({ user, message, time });
-                if (this.history.length > 20) this.history = this.history.slice(0, 20);
-                this.renderHistory();
-            }
-            
-            renderHistory() {
-                const historyList = document.getElementById('historyList');
-                historyList.innerHTML = '';
-                this.history.forEach(item => {
-                    const historyElement = document.createElement('div');
-                    historyElement.className = 'history-item';
-                    historyElement.innerHTML = `<div class="history-time">${item.time}</div><div class="history-user">${item.user}</div><div class="history-message">${item.message}</div>`;
-                    historyList.appendChild(historyElement);
-                });
-            }
-
             updateShareableLink(peerId) {
                 const shareableUrl = `${window.location.origin}${window.location.pathname}?room=${peerId}`;
                 document.getElementById('shareableLink').value = shareableUrl;
@@ -916,16 +691,9 @@
                 document.getElementById('qrcode').innerHTML = qr.createImgTag(5, 10);
             }
             
-            startSignalSimulation() {
-                setInterval(() => {
-                    const signalBars = document.querySelectorAll('.signal-bar');
-                    const strength = Math.floor(Math.random() * 5) + 1;
-                    signalBars.forEach((bar, index) => bar.classList.toggle('active', index < strength));
-                }, 2000);
-            }
-            
             updateStatus(text) {
-                document.getElementById('status').textContent = text;
+                const statusBar = document.getElementById('statusBar');
+                if (statusBar) statusBar.textContent = text;
             }
             
             showNotification(message, type = 'info') {
@@ -936,9 +704,9 @@
             }
         }
         
-        let radio;
+        let videoCall;
         document.addEventListener('DOMContentLoaded', () => {
-            radio = new RealRadioSystem();
+            videoCall = new VideoCallSystem();
         });
     </script>
 </body>
