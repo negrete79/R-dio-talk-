@@ -3,32 +3,29 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Video Call App</title>
-    <meta name="theme-color"="#075E54">
+    <title>iMo - Videochamada Simples</title>
+    <meta name="description" content="Uma PWA de videochamada simples e rápida.">
     
-    <!-- PWA Meta Tags -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="default">
-    <meta name="apple-mobile-web-app-title" content="VideoCall">
-    <link rel="apple-touch-icon" href="https://picsum.photos/seed/videocall-app/192/192.jpg">
-    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiVmlkZW8gQ2FsbCBBcHAiLCJzaG9ydF9uYW1lIjoiVmlkZW9DYWxsIiwidGhlbWVfY29sb3IiOiIjMDc1RTU0IiwiYmFja2dyb3VuZF9jb2xvciI6IiNFQ0VGRUQiLCJkaXNwbGF5Ijoic3RhbmRhbG9uZSIsIm9yaWVudGF0aW9uIjoicG9ydHJhaXQiLCJzY29wZSI6Ii8iLCJzdGFydF91cmwiOiIvIiwiaWNvbnMiOlt7InNyYyI6Imh0dHBzOi8vcGljc3VtLnBob3Rvcy9zZWVkL3ZpZGVvY2FsbC1hcHAvMTkyLzE5Mi5qcGciLCJzaXplcyI6IjE5MngxOTIiLCJ0eXBlIjoiaW1hZ2UvanBlZyJ9LHsic3JjIjoiaHR0cHM6Ly9waWNzdW0ucGhvdG9zL3NlZWQvdmlkZW9jYWxsLWFwcC81MTIvNTEyLmpwZyIsInNpemVzIjoiNTEyeDUxMiIsInR5cGUiOiJpbWFnZS9qcGcifV19">
+    <!-- Manifest e Tema -->
+    <link rel="manifest" id="app-manifest">
+    <meta name="theme-color" content="#f0f2f5">
+    <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>📹</text></svg>">
 
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
-    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <!-- Script do PeerJS via CDN -->
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+
     <style>
+        /* --- Variáveis de Cor e Estilo Geral --- */
         :root {
-            --app-bg: #ECE5DD;
-            --panel-bg: #FFFFFF;
-            --header-bg: #075E54;
-            --header-text: #FFFFFF;
-            --text-primary: #111B21;
-            --text-secondary: #667781;
-            --icon-color: #54656F;
-            --hover-bg: #F0F2F5;
-            --accent-color: #008069;
-            --accent-light: #D9FDD3;
-            --message-bg: #DCF8C6;
-            --border-color: #E9EDEF;
+            --bg-primary: #f0f2f5;
+            --bg-secondary: #ffffff;
+            --text-primary: #1c1e21;
+            --text-secondary: #65676b;
+            --border-color: #dddfe2;
+            --accent-color: #0084ff;
+            --accent-hover: #0077e6;
+            --shadow: 0 2px 4px rgba(0, 0, 0, 0.1), 0 8px 16px rgba(0, 0, 0, 0.1);
+            --radius: 8px;
         }
 
         * {
@@ -39,148 +36,48 @@
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--app-bg);
+            background-color: var(--bg-primary);
             color: var(--text-primary);
             height: 100vh;
+            overflow: hidden;
+        }
+
+        /* --- Layout Principal --- */
+        .app-container {
             display: flex;
-            flex-direction: column;
-            overflow: hidden; /* Esconde a barra do body, mas permite que os filhos controlem o próprio overflow */
+            height: 100vh;
         }
 
-        .app-header {
-            background-color: var(--header-bg);
-            color: var(--header-text);
-            padding: 10px 16px;
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            box-shadow: 0 1px 3px rgba(0,0,0,0.12);
-            z-index: 10;
-        }
-
-        .app-title {
-            font-size: 1.25rem;
-            font-weight: 500;
-        }
-
-        .main-container {
-            display: flex;
-            flex: 1; /* Ocupa todo o espaço restante */
-            overflow: hidden; /* Impede que o container principal faça scroll */
-        }
-
-        /* Painel da Esquerda - Contatos */
-        .contacts-panel {
+        /* --- Sidebar (Lista de Contatos) --- */
+        .sidebar {
             width: 350px;
-            background-color: var(--panel-bg);
+            background-color: var(--bg-secondary);
             border-right: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
         }
 
-        .contacts-header {
-            padding: 10px 16px;
-            border-bottom: 1px solid var(--border-color);
-            font-size: 1.1rem;
-            font-weight: 500;
-        }
-
-        .contact-list {
-            flex-grow: 1; /* Faz a lista crescer e preencher o espaço disponível */
-            overflow-y: auto; /* Garante que a barra de rolagem apareça quando necessário */
-        }
-
-        .contact-item {
-            display: flex;
-            align-items: center;
-            padding: 12px 16px;
-            cursor: pointer;
-            transition: background-color 0.2s;
-        }
-
-        .contact-item:hover {
-            background-color: var(--hover-bg);
-        }
-
-        .contact-avatar {
-            width: 48px;
-            height: 48px;
-            border-radius: 50%;
-            background-color: var(--accent-color);
-            color: white;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            font-size: 1.5rem;
-            font-weight: bold;
-            margin-right: 15px;
-        }
-
-        .contact-info {
-            flex-grow: 1;
-        }
-
-        .contact-name {
-            font-weight: 500;
-        }
-
-        .contact-id {
-            font-size: 0.85rem;
-            color: var(--text-secondary);
-        }
-
-        /* Painel da Direita - Conteúdo Principal */
-        .content-panel {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            background-color: var(--app-bg);
-        }
-
-        .content-header {
-            padding: 15px 20px;
-            background-color: var(--panel-bg);
+        .sidebar-header {
+            padding: 20px;
             border-bottom: 1px solid var(--border-color);
             text-align: center;
         }
 
-        .content-body {
-            flex-grow: 1;
-            padding: 20px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            text-align: center;
+        .sidebar-header h2 {
+            font-size: 24px;
+            font-weight: 600;
         }
 
-        .your-id-box {
-            background-color: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            width: 100%;
-            max-width: 400px;
-            margin-bottom: 20px;
-        }
-
-        .your-id-box h3 {
-            margin-bottom: 10px;
+        .my-peer-id {
+            margin-top: 10px;
+            font-size: 12px;
             color: var(--text-secondary);
-        }
-
-        #yourId {
-            font-family: 'Courier New', Courier, monospace;
-            font-size: 1rem;
-            color: var(--text-primary);
             word-break: break-all;
         }
 
         .add-contact-form {
-            background-color: var(--panel-bg);
-            padding: 20px;
-            border-radius: 8px;
-            width: 100%;
-            max-width: 400px;
+            padding: 15px;
+            border-bottom: 1px solid var(--border-color);
             display: flex;
             flex-direction: column;
             gap: 10px;
@@ -189,386 +86,440 @@
         .add-contact-form input {
             padding: 10px;
             border: 1px solid var(--border-color);
-            border-radius: 8px;
-            font-size: 1rem;
+            border-radius: var(--radius);
+            font-size: 14px;
         }
 
-        .add-contact-btn {
-            padding: 12px;
+        .add-contact-form button {
+            padding: 10px;
             background-color: var(--accent-color);
             color: white;
             border: none;
-            border-radius: 8px;
-            font-size: 1rem;
-            font-weight: 500;
+            border-radius: var(--radius);
+            font-size: 14px;
+            font-weight: 600;
             cursor: pointer;
             transition: background-color 0.2s;
         }
 
-        .add-contact-btn:hover {
-            background-color: #056450;
+        .add-contact-form button:hover {
+            background-color: var(--accent-hover);
         }
 
-        /* Tela de Chamada de Vídeo */
-        .video-call-screen {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: #000;
-            display: none;
-            flex-direction: column;
-            z-index: 100;
+        /* --- Lista de Contatos com Barra de Rolagem --- */
+        .contacts-list {
+            flex-grow: 1;
+            overflow-y: auto; /* Garante a barra de rolagem */
+            padding: 10px;
         }
 
-        .video-call-screen.active {
+        /* Estilização da barra de rolagem para WebKit/Blink */
+        .contacts-list::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .contacts-list::-webkit-scrollbar-track {
+            background: var(--bg-primary);
+        }
+
+        .contacts-list::-webkit-scrollbar-thumb {
+            background-color: var(--text-secondary);
+            border-radius: 3px;
+        }
+
+        .contact-item {
             display: flex;
-        }
-
-        #remoteVideo {
-            flex: 1;
-            width: 100%;
-            object-fit: cover;
-        }
-
-        .call-header {
-            padding: 15px 20px;
-            background: linear-gradient(to bottom, rgba(0,0,0,0.7), transparent);
-            color: white;
-            text-align: center;
-            z-index: 10;
-        }
-
-        .call-controls {
-            padding: 20px;
-            background: linear-gradient(to top, rgba(0,0,0,0.7), transparent);
-            display: flex;
-            justify-content: center;
             align-items: center;
-            gap: 30px;
-            z-index: 10;
-        }
-
-        .control-btn {
-            width: 56px;
-            height: 56px;
-            border-radius: 50%;
-            border: none;
+            padding: 12px;
+            border-radius: var(--radius);
             cursor: pointer;
-            font-size: 1.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .contact-item:hover {
+            background-color: var(--bg-primary);
+        }
+
+        .contact-avatar {
+            width: 40px;
+            height: 40px;
+            background-color: #e4e6eb;
+            border-radius: 50%;
             display: flex;
             align-items: center;
             justify-content: center;
-            color: white;
-            transition: transform 0.1s;
+            margin-right: 12px;
+            font-size: 20px;
         }
 
-        .control-btn:active {
-            transform: scale(0.9);
+        .contact-info h3 {
+            font-size: 16px;
+            font-weight: 500;
         }
 
-        .control-btn.mic { background-color: #333; }
-        .control-btn.video { background-color: #333; }
-        .control-btn.end-call { background-color: #E4323B; }
-
-        #localVideo {
-            position: absolute;
-            bottom: 100px;
-            right: 20px;
-            width: 120px;
-            height: 160px;
-            border-radius: 8px;
-            border: 2px solid var(--border-color);
-            object-fit: cover;
-            background-color: #333;
-        }
-
-        /* Modal de Chamada Entrante */
-        .incoming-call-modal {
-            position: fixed;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 200;
-        }
-
-        .incoming-call-modal.active {
-            display: flex;
-        }
-
-        .modal-content {
-            background-color: var(--panel-bg);
-            padding: 30px;
-            border-radius: 10px;
-            text-align: center;
-            width: 90%;
-            max-width: 350px;
-        }
-
-        .modal-content h2 {
-            margin-bottom: 10px;
-            font-size: 1.5rem;
-        }
-
-        .modal-content p {
-            margin-bottom: 25px;
+        .contact-info p {
+            font-size: 13px;
             color: var(--text-secondary);
         }
 
-        .modal-actions {
+        /* --- Área de Conteúdo Principal --- */
+        .main-content {
+            flex-grow: 1;
             display: flex;
+            align-items: center;
             justify-content: center;
-            gap: 20px;
+            padding: 40px;
+            text-align: center;
         }
 
-        .modal-btn {
+        .welcome-message h1 {
+            font-size: 48px;
+            margin-bottom: 10px;
+        }
+
+        .welcome-message p {
+            font-size: 18px;
+            color: var(--text-secondary);
+        }
+
+        /* --- Tela de Chamada Ativa --- */
+        .call-screen {
+            display: none;
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: black;
+        }
+
+        #remote-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        #local-video {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 200px;
+            height: 150px;
+            background-color: #333;
+            border-radius: var(--radius);
+            border: 2px solid var(--bg-secondary);
+            object-fit: cover;
+            box-shadow: var(--shadow);
+        }
+
+        .call-controls {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 15px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px 20px;
+            border-radius: 30px;
+        }
+
+        .call-controls button {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            border: none;
+            background-color: rgba(255, 255, 255, 0.2);
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            transition: background-color 0.2s, transform 0.1s;
+        }
+
+        .call-controls button:hover {
+            background-color: rgba(255, 255, 255, 0.3);
+            transform: scale(1.1);
+        }
+
+        .call-controls button.end-call {
+            background-color: #fa383e;
+        }
+
+        .call-controls button.end-call:hover {
+            background-color: #d32f2f;
+        }
+        
+        .call-controls button.muted {
+            background-color: #fa383e;
+        }
+
+        /* --- Modal de Chamada Recebida --- */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.6);
+            align-items: center;
+            justify-content: center;
+        }
+
+        .modal-content {
+            background-color: var(--bg-secondary);
+            padding: 30px;
+            border-radius: var(--radius);
+            text-align: center;
+            box-shadow: var(--shadow);
+            animation: fadeIn 0.3s;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: scale(0.9); }
+            to { opacity: 1; transform: scale(1); }
+        }
+
+        .modal-content h2 {
+            margin-bottom: 20px;
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        .modal-buttons button {
             padding: 12px 25px;
             border: none;
-            border-radius: 25px;
-            font-size: 1rem;
-            font-weight: 500;
+            border-radius: var(--radius);
+            font-size: 16px;
+            font-weight: 600;
             cursor: pointer;
+            transition: background-color 0.2s;
+        }
+
+        .modal-buttons .accept {
+            background-color: #31a24c;
             color: white;
         }
 
-        .modal-btn.answer { background-color: #00A884; }
-        .modal-btn.decline { background-color: #E4323B; }
+        .modal-buttons .accept:hover {
+            background-color: #2e8b44;
+        }
 
-        /* Notificação */
-        .notification {
-            position: fixed;
-            top: 20px;
-            left: 50%;
-            transform: translateX(-50%) translateY(-100px);
-            background-color: #323232;
+        .modal-buttons .decline {
+            background-color: #fa383e;
             color: white;
-            padding: 12px 20px;
-            border-radius: 5px;
-            transition: transform 0.3s ease;
-            z-index: 300;
         }
 
-        .notification.show {
-            transform: translateX(-50%) translateY(0);
+        .modal-buttons .decline:hover {
+            background-color: #d32f2f;
         }
 
+        /* --- Responsividade --- */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                position: absolute;
+                z-index: 100;
+                transform: translateX(-100%);
+                transition: transform 0.3s ease-in-out;
+            }
+            .sidebar.open {
+                transform: translateX(0);
+            }
+            .main-content {
+                width: 100%;
+            }
+            .welcome-message h1 { font-size: 32px; }
+            #local-video { width: 100px; height: 75px; }
+        }
     </style>
 </head>
 <body>
 
-    <header class="app-header">
-        <span class="app-title">VideoCall</span>
-        <i class="fas fa-ellipsis-v" style="cursor: pointer;"></i>
-    </header>
-
-    <main class="main-container">
-        
-        <!-- Painel de Contatos -->
-        <aside class="contacts-panel">
-            <div class="contacts-header">Contatos</div>
-            <div class="contact-list" id="contactList">
-                <!-- Contatos serão renderizados aqui -->
+    <div class="app-container">
+        <!-- Sidebar -->
+        <aside class="sidebar">
+            <header class="sidebar-header">
+                <h2>📹 iMo</h2>
+                <div class="my-peer-id">Seu ID: <span id="my-id">...</span></div>
+            </header>
+            <form class="add-contact-form" id="add-contact-form">
+                <input type="text" id="contact-name" placeholder="Nome do Contato" required>
+                <input type="text" id="contact-peer-id" placeholder="ID do PeerJS" required>
+                <button type="submit">Adicionar Contato</button>
+            </form>
+            <div class="contacts-list" id="contacts-list">
+                <!-- Contatos serão inseridos aqui pelo JS -->
             </div>
         </aside>
 
-        <!-- Painel de Conteúdo Principal -->
-        <section class="content-panel">
-            <div class="content-body">
-                <div class="your-id-box">
-                    <h3>Seu ID de Chamada</h3>
-                    <div id="yourId">Gerando...</div>
-                </div>
-                <div class="add-contact-form">
-                    <input type="text" id="newContactName" placeholder="Nome do Contato">
-                    <input type="text" id="newContactId" placeholder="ID do Contato">
-                    <button class="add-contact-btn" id="addContactBtn">Adicionar Contato</button>
-                </div>
+        <!-- Main Content -->
+        <main class="main-content" id="main-content">
+            <div class="welcome-message">
+                <h1>Bem-vindo ao iMo</h1>
+                <p>Adicione um contato para iniciar uma videochamada.</p>
             </div>
-        </section>
-    </main>
+        </main>
+    </div>
 
-    <!-- Tela de Chamada de Vídeo -->
-    <div class="video-call-screen" id="videoCallScreen">
-        <video id="remoteVideo" autoplay playsinline></video>
-        <video id="localVideo" autoplay playsinline muted></video>
-        <div class="call-header">
-            <h3 id="callStatus">Chamando...</h3>
-        </div>
+    <!-- Tela de Chamada Ativa (inicialmente escondida) -->
+    <div class="call-screen" id="call-screen">
+        <video id="remote-video" autoplay playsinline></video>
+        <video id="local-video" autoplay muted playsinline></video>
         <div class="call-controls">
-            <button class="control-btn mic" id="micBtn"><i class="fas fa-microphone"></i></button>
-            <button class="control-btn video" id="videoBtn"><i class="fas fa-video"></i></button>
-            <button class="control-btn end-call" id="endCallBtn"><i class="fas fa-phone-slash"></i></button>
+            <button id="mic-toggle" title="Mutar/Desmutar">🎤</button>
+            <button id="camera-toggle" title="Ligar/Desligar Câmera">📷</button>
+            <button id="end-call" class="end-call" title="Encerrar Chamada">📞</button>
         </div>
     </div>
 
-    <!-- Modal de Chamada Entrante -->
-    <div class="incoming-call-modal" id="incomingCallModal">
+    <!-- Modal de Chamada Recebida -->
+    <div class="modal" id="incoming-call-modal">
         <div class="modal-content">
-            <h2>Chamada Entrante</h2>
-            <p id="callerName">...</p>
-            <div class="modal-actions">
-                <button class="modal-btn decline" id="declineBtn">Recusar</button>
-                <button class="modal-btn answer" id="answerBtn">Atender</button>
+            <h2>📞 Chamada de <span id="caller-name">...</span></h2>
+            <div class="modal-buttons">
+                <button class="accept" id="accept-call">Atender</button>
+                <button class="decline" id="decline-call">Recusar</button>
             </div>
         </div>
     </div>
 
-    <!-- Notificação -->
-    <div class="notification" id="notification"></div>
-
-    <script>
-        // Som de chamada em Base64
-        const ringtoneData = "data:audio/wav;base64,UklGRnoGAABXQVZFZm10IBAAAAABAAEAQB8AAEAfAAABAAgAZGF0YQoGAACBhYqFbF1fdJivrJBhNjVgodDbq2EcBj+a2/LDciUFLIHO8tiJNwgZaLvt559NEAxQp+PwtmMcBjiR1/LMeSwFJHfH8N2QQAoUXrTp66hVFApGn+DyvmwhBjiS2Oy9diMFl2+z5N17Kw0XaLzl66hVFApGnt/yvmwhBTGH0fPTgjMGHm7A7+OZURE";
+    <script type="module">
+        // --- Lógica da Aplicação ---
 
         class VideoCallApp {
             constructor() {
                 this.peer = null;
+                this.currentCall = null;
                 this.localStream = null;
-                this.currentCall = null;
                 this.contacts = [];
-                this.ringtoneAudio = new Audio(ringtoneData);
-                this.ringtoneAudio.loop = true;
-                this.init();
-            }
-
-            async init() {
-                this.loadContacts();
-                this.setupEventListeners();
-                await this.initializePeer();
-            }
-
-            async initializePeer() {
-                try {
-                    this.peer = new Peer({ debug: 0 });
-                    this.peer.on('open', (id) => {
-                        document.getElementById('yourId').textContent = id;
-                        this.showNotification('Online. Adicione um contato para começar.');
-                    });
-                    this.peer.on('error', () => this.showNotification('Erro de conexão.'));
-                    this.peer.on('call', (call) => this.handleIncomingCall(call));
-                } catch (error) {
-                    this.showNotification('Falha ao iniciar o aplicativo.');
-                }
-            }
-
-            handleIncomingCall(call) {
-                this.currentCall = call;
-                const contact = this.contacts.find(c => c.id === call.peer);
-                const callerName = contact ? contact.name : `ID: ${call.peer.substring(0, 8)}`;
-                document.getElementById('callerName').textContent = callerName;
-                document.getElementById('incomingCallModal').classList.add('active');
-                this.ringtoneAudio.play();
-                if ('vibrate' in navigator) navigator.vibrate([200, 100, 200]);
-            }
-
-            async answerCall() {
-                this.ringtoneAudio.pause();
-                document.getElementById('incomingCallModal').classList.remove('active');
-                if (!this.localStream) await this.getMediaStream();
-                this.currentCall.answer(this.localStream);
-                this.setupCallEvents(this.currentCall);
-                this.showVideoCallScreen();
-            }
-
-            declineCall() {
-                this.ringtoneAudio.pause();
-                document.getElementById('incomingCallModal').classList.remove('active');
-                if (this.currentCall) this.currentCall.close();
-                this.currentCall = null;
-            }
-
-            async startCall(contactId, contactName) {
-                if (!this.peer || !contactId) return;
-                if (!this.localStream) await this.getMediaStream();
                 
-                this.showVideoCallScreen();
-                document.getElementById('callStatus').textContent = `Ligando para ${contactName}...`;
-
-                const call = this.peer.call(contactId, this.localStream);
-                this.currentCall = call;
-                this.setupCallEvents(call);
+                this.initElements();
+                this.initEventListeners();
+                this.loadContacts();
+                this.initPWA();
+                this.initPeer();
             }
 
-            setupCallEvents(call) {
-                call.on('stream', (remoteStream) => {
-                    document.getElementById('remoteVideo').srcObject = remoteStream;
-                    document.getElementById('callStatus').textContent = 'Em Chamada';
-                });
-                call.on('close', () => this.endCall());
-                call.on('error', () => this.endCall());
+            initElements() {
+                // Formulário e lista de contatos
+                this.addContactForm = document.getElementById('add-contact-form');
+                this.contactNameInput = document.getElementById('contact-name');
+                this.contactPeerIdInput = document.getElementById('contact-peer-id');
+                this.contactsList = document.getElementById('contacts-list');
+                this.myIdSpan = document.getElementById('my-id');
+
+                // Conteúdo principal e tela de chamada
+                this.mainContent = document.getElementById('main-content');
+                this.callScreen = document.getElementById('call-screen');
+                this.localVideo = document.getElementById('local-video');
+                this.remoteVideo = document.getElementById('remote-video');
+                
+                // Controles da chamada
+                this.micToggleBtn = document.getElementById('mic-toggle');
+                this.cameraToggleBtn = document.getElementById('camera-toggle');
+                this.endCallBtn = document.getElementById('end-call');
+
+                // Modal de chamada recebida
+                this.incomingCallModal = document.getElementById('incoming-call-modal');
+                this.callerNameSpan = document.getElementById('caller-name');
+                this.acceptCallBtn = document.getElementById('accept-call');
+                this.declineCallBtn = document.getElementById('decline-call');
             }
 
-            async getMediaStream() {
-                try {
-                    this.localStream = await navigator.mediaDevices.getUserMedia({ 
-                        video: { width: { ideal: 1280 }, height: { ideal: 720 } }, 
-                        audio: true 
+            initEventListeners() {
+                this.addContactForm.addEventListener('submit', (e) => this.handleAddContact(e));
+                this.endCallBtn.addEventListener('click', () => this.endCall());
+                this.micToggleBtn.addEventListener('click', () => this.toggleMic());
+                this.cameraToggleBtn.addEventListener('click', () => this.toggleCamera());
+            }
+
+            // --- PWA ---
+            initPWA() {
+                // 1. Criar o Manifest
+                const manifest = {
+                    name: "iMo - Videochamada Simples",
+                    short_name: "iMo",
+                    start_url: ".",
+                    display: "standalone",
+                    background_color: "#f0f2f5",
+                    theme_color: "#f0f2f5",
+                    icons: [
+                        { src: "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>📹</text></svg>", sizes: "any", type: "image/svg+xml" }
+                    ]
+                };
+                const manifestBlob = new Blob([JSON.stringify(manifest)], { type: 'application/json' });
+                const manifestURL = URL.createObjectURL(manifestBlob);
+                document.getElementById('app-manifest').href = manifestURL;
+
+                // 2. CORREÇÃO FINAL: Tentar registrar o SW, mas falhar silenciosamente se for bloqueado pelo navegador.
+                if ('serviceWorker' in navigator) {
+                    const swContent = `
+                        self.addEventListener('install', () => self.skipWaiting());
+                        self.addEventListener('activate', () => self.clients.claim());
+                    `;
+                    const swBlob = new Blob([swContent], { type: 'application/javascript' });
+                    const swUrl = URL.createObjectURL(swBlob);
+
+                    navigator.serviceWorker.register(swUrl).catch(error => {
+                        // Erro esperado em muitos ambientes de arquivo único.
+                        // Logamos uma mensagem útil no console, mas não interrompemos o app.
+                        console.warn(
+                            `%c⚠️ Falha ao registrar o Service Worker (isso é normal para arquivos HTML únicos).`,
+                            'color: #FFA500; font-weight: bold;'
+                        );
+                        console.error(
+                            'O navegador bloqueou o registro por política de segurança (origem blob:).',
+                            'O aplicativo continuará funcionando normalmente, mas sem cache offline.'
+                        );
                     });
-                    document.getElementById('localVideo').srcObject = this.localStream;
-                } catch (error) {
-                    this.showNotification('Erro ao acessar câmera/microfone.');
-                    this.endCall();
                 }
             }
 
-            endCall() {
-                if (this.currentCall) this.currentCall.close();
-                this.currentCall = null;
-                document.getElementById('remoteVideo').srcObject = null;
-                this.hideVideoCallScreen();
-            }
+            // --- PeerJS ---
+            initPeer() {
+                this.peer = new Peer(); // Usa o servidor de sinalização público do PeerJS
+                
+                this.peer.on('open', (id) => {
+                    console.log('Meu ID do PeerJS:', id);
+                    this.myIdSpan.textContent = id;
+                });
 
-            showVideoCallScreen() {
-                document.querySelector('.main-container').style.display = 'none';
-                document.querySelector('.app-header').style.display = 'none';
-                document.getElementById('videoCallScreen').classList.add('active');
-            }
+                this.peer.on('call', (call) => {
+                    console.log('Recebendo chamada de:', call.peer);
+                    this.handleIncomingCall(call);
+                });
 
-            hideVideoCallScreen() {
-                document.getElementById('videoCallScreen').classList.remove('active');
-                document.querySelector('.main-container').style.display = 'flex';
-                document.querySelector('.app-header').style.display = 'flex';
-            }
-
-            toggleMic() {
-                const audioTrack = this.localStream.getAudioTracks()[0];
-                if (audioTrack) {
-                    audioTrack.enabled = !audioTrack.enabled;
-                    const micBtn = document.getElementById('micBtn');
-                    micBtn.innerHTML = audioTrack.enabled ? '<i class="fas fa-microphone"></i>' : '<i class="fas fa-microphone-slash"></i>';
-                }
-            }
-
-            toggleVideo() {
-                const videoTrack = this.localStream.getVideoTracks()[0];
-                if (videoTrack) {
-                    videoTrack.enabled = !videoTrack.enabled;
-                    const videoBtn = document.getElementById('videoBtn');
-                    videoBtn.innerHTML = videoTrack.enabled ? '<i class="fas fa-video"></i>' : '<i class="fas fa-video-slash"></i>';
-                }
+                this.peer.on('error', (err) => {
+                    console.error('Erro no PeerJS:', err);
+                    alert('Ocorreu um erro de conexão. Verifique seu ID ou tente novamente.');
+                });
             }
 
             // --- Gerenciamento de Contatos ---
-            addContact(name, id) {
-                if (!name || !id || this.contacts.some(c => c.id === id)) return;
-                this.contacts.push({ name, id });
-                this.saveContacts();
-                this.renderContacts();
-                this.showNotification(`Contato ${name} adicionado!`);
+            handleAddContact(e) {
+                e.preventDefault();
+                const name = this.contactNameInput.value.trim();
+                const peerId = this.contactPeerIdInput.value.trim();
+
+                if (name && peerId) {
+                    const contact = { id: Date.now(), name, peerId };
+                    this.contacts.push(contact);
+                    this.saveContacts();
+                    this.renderContacts();
+                    this.addContactForm.reset();
+                }
             }
 
             saveContacts() {
-                localStorage.setItem('videoCallContacts', JSON.stringify(this.contacts));
+                localStorage.setItem('imoContacts', JSON.stringify(this.contacts));
             }
 
             loadContacts() {
-                const saved = localStorage.getItem('videoCallContacts');
+                const saved = localStorage.getItem('imoContacts');
                 if (saved) {
                     this.contacts = JSON.parse(saved);
                     this.renderContacts();
@@ -576,57 +527,161 @@
             }
 
             renderContacts() {
-                const list = document.getElementById('contactList');
-                list.innerHTML = '';
-                if (this.contacts.length === 0) {
-                    list.innerHTML = '<div style="padding: 20px; text-align: center; color: var(--text-secondary);">Nenhum contato ainda.</div>';
-                    return;
-                }
+                this.contactsList.innerHTML = '';
                 this.contacts.forEach(contact => {
                     const item = document.createElement('div');
                     item.className = 'contact-item';
-                    item.onclick = () => this.startCall(contact.id, contact.name);
                     item.innerHTML = `
-                        <div class="contact-avatar">${contact.name.charAt(0).toUpperCase()}</div>
+                        <div class="contact-avatar">👤</div>
                         <div class="contact-info">
-                            <div class="contact-name">${contact.name}</div>
-                            <div class="contact-id">ID: ${contact.id.substring(0, 15)}...</div>
+                            <h3>${contact.name}</h3>
+                            <p>${contact.peerId}</p>
                         </div>
                     `;
-                    list.appendChild(item);
+                    item.addEventListener('click', () => this.startCall(contact.peerId, contact.name));
+                    this.contactsList.appendChild(item);
                 });
             }
 
-            setupEventListeners() {
-                document.getElementById('addContactBtn').addEventListener('click', () => {
-                    const name = document.getElementById('newContactName').value.trim();
-                    const id = document.getElementById('newContactId').value.trim();
-                    if (name && id) {
-                        this.addContact(name, id);
-                        document.getElementById('newContactName').value = '';
-                        document.getElementById('newContactId').value = '';
-                    } else {
-                        this.showNotification('Preencha todos os campos.');
+            // --- Fluxo de Chamada ---
+            async startCall(peerId, name) {
+                if (this.currentCall) {
+                    alert('Você já está em uma chamada.');
+                    return;
+                }
+                try {
+                    this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                    this.localVideo.srcObject = this.localStream;
+
+                    const call = this.peer.call(peerId, this.localStream);
+                    this.setupCallEvents(call, name);
+                    this.showCallScreen();
+
+                } catch (err) {
+                    console.error('Falha ao obter mídia local:', err);
+                    alert('Não foi possível acessar sua câmera/microfone. Verifique as permissões do navegador.');
+                }
+            }
+
+            handleIncomingCall(call) {
+                if (this.currentCall) {
+                    call.close();
+                    return;
+                }
+                
+                const caller = this.contacts.find(c => c.peerId === call.peer);
+                this.callerNameSpan.textContent = caller ? caller.name : call.peer;
+                this.incomingCallModal.style.display = 'flex';
+
+                const cleanup = () => {
+                    this.incomingCallModal.style.display = 'none';
+                    this.acceptCallBtn.removeEventListener('click', onAccept);
+                    this.declineCallBtn.removeEventListener('click', onDecline);
+                };
+
+                const onAccept = async () => {
+                    try {
+                        this.localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                        this.localVideo.srcObject = this.localStream;
+                        call.answer(this.localStream);
+                        this.setupCallEvents(call, this.callerNameSpan.textContent);
+                        this.showCallScreen();
+                    } catch(err) {
+                        console.error('Falha ao obter mídia para aceitar chamada:', err);
+                        alert('Não foi possível aceitar a chamada. Verifique as permissões.');
+                        call.close();
                     }
-                });
-                document.getElementById('answerBtn').addEventListener('click', () => this.answerCall());
-                document.getElementById('declineBtn').addEventListener('click', () => this.declineCall());
-                document.getElementById('endCallBtn').addEventListener('click', () => this.endCall());
-                document.getElementById('micBtn').addEventListener('click', () => this.toggleMic());
-                document.getElementById('videoBtn').addEventListener('click', () => this.toggleVideo());
+                    cleanup();
+                };
+
+                const onDecline = () => {
+                    call.close();
+                    cleanup();
+                };
+                
+                this.acceptCallBtn.addEventListener('click', onAccept);
+                this.declineCallBtn.addEventListener('click', onDecline);
             }
 
-            showNotification(message) {
-                const notification = document.getElementById('notification');
-                notification.textContent = message;
-                notification.classList.add('show');
-                setTimeout(() => notification.classList.remove('show'), 3000);
+            setupCallEvents(call, remoteName) {
+                this.currentCall = call;
+                
+                call.on('stream', (remoteStream) => {
+                    console.log('Recebendo stream de:', remoteName);
+                    this.remoteVideo.srcObject = remoteStream;
+                });
+
+                call.on('close', () => {
+                    console.log('Chamada encerrada pelo outro lado.');
+                    this.endCall();
+                });
+
+                call.on('error', (err) => {
+                    console.error('Erro na chamada:', err);
+                    alert('A chamada falhou.');
+                    this.endCall();
+                });
+            }
+
+            showCallScreen() {
+                this.mainContent.style.display = 'none';
+                this.callScreen.style.display = 'block';
+            }
+
+            hideCallScreen() {
+                this.callScreen.style.display = 'none';
+                this.mainContent.style.display = 'flex';
+            }
+
+            endCall() {
+                if (this.currentCall) {
+                    this.currentCall.close();
+                }
+                if (this.localStream) {
+                    this.localStream.getTracks().forEach(track => track.stop());
+                }
+                
+                this.currentCall = null;
+                this.localStream = null;
+                this.localVideo.srcObject = null;
+                this.remoteVideo.srcObject = null;
+
+                this.hideCallScreen();
+                this.resetControlButtons();
+            }
+
+            // --- Controles da Chamada ---
+            toggleMic() {
+                if (this.localStream) {
+                    const audioTrack = this.localStream.getAudioTracks()[0];
+                    if (audioTrack) {
+                        audioTrack.enabled = !audioTrack.enabled;
+                        this.micToggleBtn.textContent = audioTrack.enabled ? '🎤' : '🔇';
+                        this.micToggleBtn.classList.toggle('muted', !audioTrack.enabled);
+                    }
+                }
+            }
+
+            toggleCamera() {
+                if (this.localStream) {
+                    const videoTrack = this.localStream.getVideoTracks()[0];
+                    if (videoTrack) {
+                        videoTrack.enabled = !videoTrack.enabled;
+                        this.cameraToggleBtn.textContent = videoTrack.enabled ? '📷' : '📵';
+                    }
+                }
+            }
+            
+            resetControlButtons() {
+                this.micToggleBtn.textContent = '🎤';
+                this.micToggleBtn.classList.remove('muted');
+                this.cameraToggleBtn.textContent = '📷';
             }
         }
-        
-        let app;
+
+        // Inicializar a aplicação quando o DOM estiver carregado
         document.addEventListener('DOMContentLoaded', () => {
-            app = new VideoCallApp();
+            new VideoCallApp();
         });
     </script>
 </body>
