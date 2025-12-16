@@ -1,0 +1,1196 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>Tallk Radio - PWA</title>
+    <meta name="description" content="Sistema de comunicação por rádio baseado em WebRTC. Conecte-se facilmente com QR Code.">
+    <meta name="theme-color" content="#1e3c72">
+    
+    <!-- PWA Meta Tags -->
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="apple-mobile-web-app-title" content="Tallk Radio">
+    <meta name="application-name" content="Tallk Radio">
+    <meta name="msapplication-TileColor" content="#1e3c72">
+    
+    <!-- Ícones para PWA (usando placeholders) -->
+    <link rel="apple-touch-icon" href="https://picsum.photos/seed/talkradio-pwa/192/192.jpg">
+    <link rel="icon" type="image/png" sizes="32x32" href="https://picsum.photos/seed/talkradio-pwa/32/32.jpg">
+    <link rel="icon" type="image/png" sizes="16x16" href="https://picsum.photos/seed/talkradio-pwa/16/16.jpg">
+    
+    <!-- Manifest JSON embutido em Base64 para ser um arquivo único -->
+    <link rel="manifest" href="data:application/json;base64,eyJuYW1lIjoiVGFsbGsgUmFkaW8gLVBXQSIsInNob3J0X25hbWUiOiJUUmFkaW8iLCJ0aGVtZV9jb2xvciI6IiMxZTNjNzIiLCJiYWNrZ3JvdW5kX2NvbG9yIjoiIzJhNTI5OCIsImRpc3BsYXkiOiJzdGFuZGFsb25lIiwib3JpZW50YXRpb24iOiJwb3J0cmFpdCIsInNjb3BlIjoiLyIsInN0YXJ0X3VybCI6Ii8iLCJpY29ucyI6W3sic3JjIjoiaHR0cHM6Ly9waWNzdW0ucGhvdG9zL3NlZWQvdGFsa3JhZGlvLXB3YS8xOTIvMTkyLmpwZyIsInNpemVzIjoiMTkyeDE5MiIsInR5cGUiOiJpbWFnZS9qcGcifSx7InNyYyI6Imh0dHBzOi8vcGljc3VtLnBob3Rvcy9zZWVkL3RhbGtyYWRpby1wd2EvNTEyLzUxMi5qcGciLCJzaXplcyI6IjUxMng1MTIiLCJ0eXBlIjoiaW1hZ2UvanBlZyJ9XX0=">
+    
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <script src="https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js"></script>
+    <style>
+        :root {
+            --primary-color: #1e3c72;
+            --secondary-color: #2a5298;
+            --accent-color: #4ecdc4;
+            --danger-color: #e74c3c;
+            --warning-color: #f39c12;
+            --success-color: #2ecc71;
+            --light-bg: rgba(255, 255, 255, 0.1);
+            --dark-bg: rgba(0, 0, 0, 0.3);
+            --text-primary: #ffffff;
+            --text-secondary: rgba(255, 255, 255, 0.7);
+            --border-color: rgba(255, 255, 255, 0.2);
+        }
+
+        [data-theme="light"] {
+            --primary-color: #3498db;
+            --secondary-color: #2980b9;
+            --light-bg: rgba(0, 0, 0, 0.05);
+            --dark-bg: rgba(0, 0, 0, 0.1);
+            --text-primary: #2c3e50;
+            --text-secondary: #7f8c8d;
+            --border-color: rgba(0, 0, 0, 0.1);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            color: var(--text-primary);
+            overflow-x: hidden;
+        }
+
+        header {
+            background: var(--dark-bg);
+            padding: 15px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            backdrop-filter: blur(10px);
+            border-bottom: 1px solid var(--border-color);
+            z-index: 100;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            font-size: 1.5rem;
+            font-weight: bold;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        .theme-toggle {
+            background: none;
+            border: none;
+            color: var(--text-primary);
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: transform 0.3s ease;
+        }
+
+        .theme-toggle:hover {
+            transform: rotate(180deg);
+        }
+
+        .install-prompt {
+            position: fixed;
+            bottom: 20px;
+            left: 20px;
+            background: var(--dark-bg);
+            color: var(--text-primary);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+            display: none;
+            z-index: 1000;
+            max-width: 300px;
+            backdrop-filter: blur(10px);
+            border: 1px solid var(--border-color);
+        }
+
+        .install-prompt.show {
+            display: block;
+            animation: slideIn 0.5s ease;
+        }
+
+        @keyframes slideIn {
+            from { transform: translateX(-100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+
+        .install-prompt h3 {
+            margin-bottom: 10px;
+            font-size: 1.1rem;
+        }
+
+        .install-prompt p {
+            margin-bottom: 15px;
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        .install-prompt button {
+            background: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 8px 15px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+            margin-right: 10px;
+        }
+
+        .install-prompt button.dismiss {
+            background: transparent;
+            border: 1px solid var(--border-color);
+        }
+
+        main {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            max-width: 1200px;
+            width: 100%;
+            margin: 0 auto;
+        }
+
+        .connection-tabs {
+            display: flex;
+            margin-bottom: 20px;
+            background: var(--dark-bg);
+            border-radius: 10px;
+            overflow: hidden;
+        }
+
+        .tab-button {
+            flex: 1;
+            padding: 15px;
+            background: none;
+            border: none;
+            color: var(--text-secondary);
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 500;
+        }
+
+        .tab-button.active {
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .tab-content {
+            display: none;
+            animation: fadeIn 0.5s ease;
+        }
+
+        .tab-content.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        .container {
+            display: grid;
+            grid-template-columns: 1fr 2fr 1fr;
+            gap: 20px;
+            flex: 1;
+        }
+
+        /* Painel Esquerdo - Usuários */
+        .users-panel {
+            background: var(--light-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            overflow-y: auto;
+            height: 100%;
+        }
+
+        .users-panel h2 {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .user-item {
+            background: var(--dark-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+
+        .user-item:hover {
+            background: var(--light-bg);
+            transform: translateX(5px);
+        }
+
+        .user-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: linear-gradient(45deg, var(--danger-color), var(--accent-color));
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+
+        .user-info {
+            flex: 1;
+        }
+
+        .user-name {
+            color: var(--text-primary);
+            font-weight: 500;
+        }
+
+        .user-status {
+            font-size: 12px;
+            color: var(--text-secondary);
+        }
+
+        .status-indicator {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            animation: pulse 2s infinite;
+        }
+
+        .status-indicator.speaking {
+            background: var(--danger-color);
+            animation: speaking-pulse 0.5s infinite;
+        }
+
+        @keyframes pulse {
+            0% { opacity: 1; }
+            50% { opacity: 0.5; }
+            100% { opacity: 1; }
+        }
+
+        @keyframes speaking-pulse {
+            0% { transform: scale(1); opacity: 1; }
+            50% { transform: scale(1.5); opacity: 0.7; }
+            100% { transform: scale(1); opacity: 1; }
+        }
+
+        /* Painel Central - Rádio */
+        .radio-panel {
+            background: linear-gradient(145deg, #2c3e50, #34495e);
+            border-radius: 30px;
+            padding: 30px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            position: relative;
+            overflow: hidden;
+            height: 100%;
+        }
+
+        .radio-panel::before {
+            content: '';
+            position: absolute;
+            top: -50%;
+            left: -50%;
+            width: 200%;
+            height: 200%;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.1) 0%, transparent 70%);
+            animation: rotate 20s linear infinite;
+        }
+
+        @keyframes rotate {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        .radio-display {
+            background: #1a1a1a;
+            border-radius: 20px;
+            padding: 20px;
+            margin-bottom: 30px;
+            width: 100%;
+            max-width: 300px;
+            text-align: center;
+            position: relative;
+            z-index: 1;
+        }
+
+        .frequency {
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            font-size: 24px;
+            font-weight: bold;
+            text-shadow: 0 0 10px #00ff00;
+            margin-bottom: 10px;
+        }
+
+        .channel-info {
+            color: #fff;
+            font-size: 14px;
+            margin-bottom: 15px;
+        }
+
+        .signal-strength {
+            display: flex;
+            gap: 3px;
+            justify-content: center;
+            margin-bottom: 15px;
+        }
+
+        .signal-bar {
+            width: 4px;
+            height: 20px;
+            background: #333;
+            border-radius: 2px;
+            transition: all 0.3s ease;
+        }
+
+        .signal-bar.active {
+            background: #00ff00;
+            box-shadow: 0 0 5px #00ff00;
+        }
+
+        .ptt-button {
+            width: 150px;
+            height: 150px;
+            border-radius: 50%;
+            background: linear-gradient(145deg, var(--danger-color), #c0392b);
+            border: none;
+            color: white;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            position: relative;
+            z-index: 1;
+            transition: all 0.3s ease;
+            box-shadow: 0 10px 30px rgba(231, 76, 60, 0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 5px;
+            touch-action: manipulation; /* Evita zoom duplo no mobile */
+        }
+
+        .ptt-button:hover:not(:disabled) {
+            transform: translateY(-5px);
+            box-shadow: 0 15px 40px rgba(231, 76, 60, 0.4);
+        }
+
+        .ptt-button:active:not(:disabled) {
+            transform: translateY(-2px);
+        }
+
+        .ptt-button:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+
+        .ptt-button.transmitting {
+            background: linear-gradient(145deg, var(--warning-color), #e67e22);
+            animation: transmitting-pulse 1s infinite;
+        }
+
+        @keyframes transmitting-pulse {
+            0% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0.7); }
+            70% { box-shadow: 0 0 0 20px rgba(243, 156, 18, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(243, 156, 18, 0); }
+        }
+
+        .volume-control {
+            margin-top: 30px;
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            color: white;
+            position: relative;
+            z-index: 1;
+        }
+
+        .volume-slider {
+            width: 150px;
+            height: 6px;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 3px;
+            outline: none;
+            -webkit-appearance: none;
+        }
+
+        .volume-slider::-webkit-slider-thumb {
+            -webkit-appearance: none;
+            width: 18px;
+            height: 18px;
+            background: #00ff00;
+            border-radius: 50%;
+            cursor: pointer;
+            box-shadow: 0 0 10px #00ff00;
+        }
+
+        /* Painel Direito - Histórico */
+        .history-panel {
+            background: var(--light-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 20px;
+            border: 1px solid var(--border-color);
+            overflow-y: auto;
+            height: 100%;
+        }
+
+        .history-panel h2 {
+            color: var(--text-primary);
+            margin-bottom: 20px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .history-item {
+            background: var(--dark-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 10px;
+            transition: all 0.3s ease;
+        }
+
+        .history-item:hover {
+            background: var(--light-bg);
+        }
+
+        .history-time {
+            color: var(--text-secondary);
+            font-size: 12px;
+            margin-bottom: 5px;
+        }
+
+        .history-user {
+            color: var(--accent-color);
+            font-weight: 500;
+            margin-bottom: 5px;
+        }
+
+        .history-message {
+            color: var(--text-primary);
+            font-size: 14px;
+        }
+
+        /* Conteúdo das Abas */
+        .tab-inner-content {
+            background: var(--light-bg);
+            backdrop-filter: blur(10px);
+            border-radius: 20px;
+            padding: 30px;
+            border: 1px solid var(--border-color);
+            text-align: center;
+        }
+
+        .shareable-link-container {
+            margin-top: 20px;
+        }
+
+        #qrcode {
+            margin: 20px auto;
+            padding: 20px;
+            background: white;
+            border-radius: 10px;
+            display: inline-block;
+        }
+
+        .share-link-input {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+
+        .share-link-input input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--dark-bg);
+            color: var(--text-primary);
+        }
+
+        .share-link-input button {
+            padding: 10px 20px;
+            background: var(--accent-color);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .share-link-input button:hover {
+            transform: translateY(-2px);
+        }
+
+        .connect-panel {
+            margin-top: 20px;
+        }
+
+        .connect-input {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 10px;
+        }
+
+        .connect-input input {
+            flex: 1;
+            padding: 10px;
+            border-radius: 10px;
+            border: 1px solid var(--border-color);
+            background: var(--dark-bg);
+            color: var(--text-primary);
+        }
+
+        .connect-btn {
+            padding: 10px 20px;
+            background: var(--accent-color);
+            border: none;
+            border-radius: 10px;
+            color: white;
+            cursor: pointer;
+            font-weight: bold;
+            transition: all 0.3s ease;
+        }
+
+        .connect-btn:hover {
+            transform: translateY(-2px);
+        }
+
+        .your-id-display {
+            background: var(--dark-bg);
+            border-radius: 10px;
+            padding: 15px;
+            margin-top: 20px;
+        }
+
+        .your-id-display h3 {
+            margin-bottom: 10px;
+            color: var(--text-primary);
+        }
+
+        .your-id {
+            color: var(--accent-color);
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            word-break: break-all;
+        }
+
+        /* Notification */
+        .notification {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: var(--success-color);
+            color: white;
+            padding: 15px 20px;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+            transform: translateX(400px);
+            transition: transform 0.3s ease;
+            z-index: 2000;
+            max-width: 300px;
+        }
+
+        .notification.show {
+            transform: translateX(0);
+        }
+
+        .notification.error { background: var(--danger-color); }
+        .notification.warning { background: var(--warning-color); }
+
+        /* Responsividade */
+        @media (max-width: 968px) {
+            .container {
+                grid-template-columns: 1fr;
+                grid-template-rows: auto 1fr auto;
+                height: auto;
+                gap: 15px;
+            }
+
+            .users-panel, .history-panel {
+                max-height: 200px;
+            }
+
+            .radio-panel {
+                min-height: 500px;
+            }
+
+            .ptt-button {
+                width: 120px;
+                height: 120px;
+                font-size: 16px;
+            }
+        }
+
+        @media (max-width: 480px) {
+            header {
+                padding: 10px;
+            }
+            
+            .logo {
+                font-size: 1.2rem;
+            }
+
+            main {
+                padding: 10px;
+            }
+            
+            .tab-button {
+                font-size: 0.9rem;
+                padding: 12px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <div class="logo">
+            <i class="fas fa-broadcast-tower"></i>
+            <span>Tallk Radio</span>
+        </div>
+        <div class="header-actions">
+            <button class="theme-toggle" id="themeToggle" title="Alternar Tema">
+                <i class="fas fa-moon"></i>
+            </button>
+        </div>
+    </header>
+
+    <main>
+        <div class="connection-tabs">
+            <button class="tab-button active" data-tab="room">
+                <i class="fas fa-users"></i> Conectar por Sala
+            </button>
+            <button class="tab-button" data-tab="direct">
+                <i class="fas fa-link"></i> Conexão Direta
+            </button>
+        </div>
+
+        <div class="tab-content active" id="room-tab">
+            <div class="tab-inner-content">
+                <h2>Crie ou Entre em uma Sala</h2>
+                <p style="color: var(--text-secondary); margin-top: 10px;">Compartilhe o link ou o QR Code abaixo para que outros possam se conectar a você.</p>
+                
+                <div class="shareable-link-container">
+                    <div id="qrcode"></div>
+                    <div class="share-link-input">
+                        <input type="text" id="shareableLink" readonly>
+                        <button id="copyLinkBtn"><i class="fas fa-copy"></i> Copiar</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tab-content" id="direct-tab">
+            <div class="tab-inner-content">
+                <div class="connect-panel">
+                    <h2>Conexão Direta por ID</h2>
+                    <div class="connect-input">
+                        <input type="text" id="remoteId" placeholder="Digite o ID do outro rádio">
+                        <button class="connect-btn" id="connectBtn">Conectar</button>
+                    </div>
+                </div>
+                <div class="your-id-display">
+                    <h3>Seu ID de Conexão:</h3>
+                    <div class="your-id" id="yourId">Gerando...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="container">
+            <!-- Painel de Usuários -->
+            <div class="users-panel">
+                <h2><i class="fas fa-users"></i> Usuários</h2>
+                <div id="usersList">
+                    <!-- Usuários serão adicionados dinamicamente -->
+                </div>
+            </div>
+
+            <!-- Painel do Rádio -->
+            <div class="radio-panel">
+                <div class="radio-display">
+                    <div class="frequency" id="frequency">146.520 MHz</div>
+                    <div class="channel-info">Canal: <span id="channel">1</span> | Banda: VHF</div>
+                    <div class="signal-strength" id="signalStrength">
+                        <div class="signal-bar"></div>
+                        <div class="signal-bar"></div>
+                        <div class="signal-bar"></div>
+                        <div class="signal-bar"></div>
+                        <div class="signal-bar"></div>
+                    </div>
+                    <div style="color: #00ff00; font-size: 12px; font-family: monospace;">
+                        <span id="status">AGUARDANDO</span>
+                    </div>
+                </div>
+
+                <button class="ptt-button" id="pttButton" disabled>
+                    <i class="fas fa-microphone"></i>
+                    <span>PTT</span>
+                </button>
+
+                <div class="volume-control">
+                    <i class="fas fa-volume-down"></i>
+                    <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="70">
+                    <i class="fas fa-volume-up"></i>
+                </div>
+            </div>
+
+            <!-- Painel de Histórico -->
+            <div class="history-panel">
+                <h2><i class="fas fa-history"></i> Histórico</h2>
+                <div id="historyList">
+                    <!-- Histórico será adicionado dinamicamente -->
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Banner de Instalação PWA -->
+    <div class="install-prompt" id="installPrompt">
+        <h3><i class="fas fa-download"></i> Instalar Tallk Radio</h3>
+        <p>Instale este aplicativo para um acesso mais rápido e experiência offline.</p>
+        <button id="installBtn">Instalar</button>
+        <button class="dismiss" id="dismissBtn">Agora não</button>
+    </div>
+
+    <!-- Notification -->
+    <div class="notification" id="notification"></div>
+
+    <script>
+        // Service Worker para PWA (conteúdo como string)
+        const serviceWorkerCode = `
+            const CACHE_NAME = 'tallk-radio-v1';
+            const urlsToCache = [
+                '/',
+                'https://unpkg.com/peerjs@1.4.7/dist/peerjs.min.js',
+                'https://cdn.jsdelivr.net/npm/qrcode-generator@1.4.4/qrcode.min.js',
+                'https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css',
+                'https://picsum.photos/seed/talkradio-pwa/192/192.jpg'
+            ];
+
+            self.addEventListener('install', event => {
+                event.waitUntil(
+                    caches.open(CACHE_NAME)
+                        .then(cache => cache.addAll(urlsToCache))
+                );
+            });
+
+            self.addEventListener('fetch', event => {
+                event.respondWith(
+                    caches.match(event.request)
+                        .then(response => {
+                            // Cache hit - return response
+                            if (response) {
+                                return response;
+                            }
+                            return fetch(event.request);
+                        })
+                );
+            });
+        `;
+
+        class RealRadioSystem {
+            constructor() {
+                this.peer = null;
+                this.connections = new Map();
+                this.localStream = null;
+                this.isTransmitting = false;
+                this.userName = 'Operador ' + Math.floor(Math.random() * 1000);
+                this.history = [];
+                this.installPromptEvent = null;
+                
+                this.init();
+            }
+            
+            async init() {
+                this.setupEventListeners();
+                this.loadTheme();
+                await this.initWebRTC();
+                this.startSignalSimulation();
+                this.registerServiceWorker();
+                this.setupInstallPrompt();
+            }
+
+            registerServiceWorker() {
+                if ('serviceWorker' in navigator) {
+                    const blob = new Blob([serviceWorkerCode], { type: 'application/javascript' });
+                    const swUrl = URL.createObjectURL(blob);
+                    navigator.serviceWorker.register(swUrl).then(registration => {
+                        console.log('Service Worker registrado:', registration);
+                    }).catch(error => {
+                        console.error('Falha ao registrar Service Worker:', error);
+                    });
+                }
+            }
+
+            setupInstallPrompt() {
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    this.installPromptEvent = e;
+                    document.getElementById('installPrompt').classList.add('show');
+                });
+
+                document.getElementById('installBtn').addEventListener('click', () => {
+                    if (this.installPromptEvent) {
+                        this.installPromptEvent.prompt();
+                        this.installPromptEvent.userChoice.then((choiceResult) => {
+                            if (choiceResult.outcome === 'accepted') {
+                                console.log('Usuário aceitou a instalação');
+                            }
+                            this.installPromptEvent = null;
+                            document.getElementById('installPrompt').classList.remove('show');
+                        });
+                    }
+                });
+
+                document.getElementById('dismissBtn').addEventListener('click', () => {
+                    document.getElementById('installPrompt').classList.remove('show');
+                });
+            }
+            
+            async initWebRTC() {
+                try {
+                    this.peer = new Peer({ debug: 2 });
+                    
+                    this.peer.on('open', (id) => {
+                        document.getElementById('yourId').textContent = id;
+                        this.updateShareableLink(id);
+                        this.addToHistory('Sistema', 'Rádio online - ID: ' + id.substring(0, 8) + '...');
+                        this.showNotification('Rádio conectado!', 'success');
+                        
+                        // Verificar se há um ID na URL para auto-conexão
+                        const urlParams = new URLSearchParams(window.location.search);
+                        const remotePeerId = urlParams.get('room');
+                        if (remotePeerId && remotePeerId !== id) {
+                            this.showNotification(`Conectando automaticamente à sala...`, 'warning');
+                            this.connectToPeer(remotePeerId);
+                        }
+                    });
+                    
+                    this.peer.on('call', async (call) => {
+                        if (!this.localStream) {
+                            await this.getMediaStream();
+                        }
+                        call.answer(this.localStream);
+                        
+                        call.on('stream', (remoteStream) => this.playRemoteAudio(remoteStream));
+                        call.on('close', () => this.updateUserList());
+                    });
+                    
+                    this.peer.on('connection', (conn) => {
+                        this.handleDataConnection(conn);
+                    });
+
+                    this.peer.on('disconnected', () => {
+                        this.showNotification('Conexão com o servidor perdida. Recarregue a página.', 'error');
+                    });
+
+                } catch (error) {
+                    console.error('Erro ao inicializar WebRTC:', error);
+                    this.showNotification('Erro ao inicializar rádio', 'error');
+                }
+            }
+            
+            async getMediaStream() {
+                try {
+                    this.localStream = await navigator.mediaDevices.getUserMedia({ 
+                        audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, 
+                        video: false 
+                    });
+                    document.getElementById('pttButton').disabled = false;
+                } catch (error) {
+                    console.error('Erro ao acessar microfone:', error);
+                    this.showNotification('Permita o acesso ao microfone para usar o rádio!', 'error');
+                    throw error;
+                }
+            }
+            
+            async startTransmission() {
+                if (this.isTransmitting || this.connections.size === 0) {
+                    if (this.connections.size === 0) {
+                        this.showNotification('Nenhum usuário conectado para transmitir.', 'warning');
+                    }
+                    return;
+                }
+                
+                this.isTransmitting = true;
+                this.localStream.getTracks().forEach(track => track.enabled = true);
+
+                this.connections.forEach((conn, peerId) => {
+                    const call = this.peer.call(peerId, this.localStream);
+                    call.on('stream', (remoteStream) => this.playRemoteAudio(remoteStream));
+                });
+                
+                this.updatePTTUI(true);
+                this.addToHistory(this.userName, 'Iniciou transmissão');
+            }
+            
+            stopTransmission() {
+                if (!this.isTransmitting) return;
+                
+                this.isTransmitting = false;
+                if (this.localStream) {
+                    this.localStream.getTracks().forEach(track => track.enabled = false);
+                }
+                
+                this.updatePTTUI(false);
+                this.addToHistory(this.userName, 'Encerrou transmissão');
+            }
+
+            updatePTTUI(transmitting) {
+                const pttButton = document.getElementById('pttButton');
+                const status = document.getElementById('status');
+                
+                if (transmitting) {
+                    pttButton.classList.add('transmitting');
+                    pttButton.innerHTML = '<i class="fas fa-broadcast-tower"></i><span>TX</span>';
+                    status.textContent = 'TRANSMITINDO';
+                } else {
+                    pttButton.classList.remove('transmitting');
+                    pttButton.innerHTML = '<i class="fas fa-microphone"></i><span>PTT</span>';
+                    status.textContent = 'PRONTO';
+                }
+            }
+            
+            playRemoteAudio(stream) {
+                const audio = new Audio();
+                audio.srcObject = stream;
+                audio.autoplay = true;
+                audio.volume = document.getElementById('volumeSlider').value / 100;
+            }
+            
+            connectToPeer(remoteId) {
+                if (!remoteId || remoteId === this.peer.id) {
+                    this.showNotification('ID inválido ou é o seu próprio ID.', 'error');
+                    return;
+                }
+                
+                try {
+                    const conn = this.peer.connect(remoteId);
+                    this.handleDataConnection(conn);
+                    this.addToHistory('Sistema', 'Tentando conectar com ' + remoteId.substring(0, 8) + '...');
+                } catch (error) {
+                    console.error('Erro ao conectar:', error);
+                    this.showNotification('Erro ao conectar', 'error');
+                }
+            }
+            
+            handleDataConnection(conn) {
+                conn.on('open', () => {
+                    this.connections.set(conn.peer, conn);
+                    this.updateUserList();
+                    this.addToHistory('Sistema', 'Conectado com ' + conn.peer.substring(0, 8) + '...');
+                    this.showNotification('Conectado com sucesso!', 'success');
+                });
+                
+                conn.on('data', (data) => {
+                    if (data.type === 'user_info') {
+                        console.log('User info from', conn.peer, data);
+                    }
+                });
+                
+                conn.on('close', () => {
+                    this.connections.delete(conn.peer);
+                    this.updateUserList();
+                    this.addToHistory('Sistema', 'Desconectado de ' + conn.peer.substring(0, 8) + '...');
+                });
+
+                conn.on('open', () => {
+                    conn.send({ type: 'user_info', name: this.userName });
+                });
+            }
+            
+            updateUserList() {
+                const usersList = document.getElementById('usersList');
+                usersList.innerHTML = '';
+                
+                const localUser = document.createElement('div');
+                localUser.className = 'user-item';
+                localUser.innerHTML = `
+                    <div class="user-avatar">${this.userName.charAt(0)}</div>
+                    <div class="user-info">
+                        <div class="user-name">${this.userName} (Você)</div>
+                        <div class="user-status">Online</div>
+                    </div>
+                    <div class="status-indicator"></div>
+                `;
+                usersList.appendChild(localUser);
+                
+                this.connections.forEach((conn, peerId) => {
+                    const userElement = document.createElement('div');
+                    userElement.className = 'user-item';
+                    userElement.innerHTML = `
+                        <div class="user-avatar">U</div>
+                        <div class="user-info">
+                            <div class="user-name">Usuário ${peerId.substring(0, 4)}</div>
+                            <div class="user-status">Conectado</div>
+                        </div>
+                        <div class="status-indicator"></div>
+                    `;
+                    usersList.appendChild(userElement);
+                });
+            }
+            
+            setupEventListeners() {
+                // PTT Button
+                const pttButton = document.getElementById('pttButton');
+                pttButton.addEventListener('mousedown', () => this.startTransmission());
+                pttButton.addEventListener('mouseup', () => this.stopTransmission());
+                pttButton.addEventListener('mouseleave', () => this.stopTransmission()); // Solução para desktop
+                pttButton.addEventListener('touchstart', (e) => { e.preventDefault(); this.startTransmission(); });
+                pttButton.addEventListener('touchend', (e) => { e.preventDefault(); this.stopTransmission(); });
+                
+                // Connect Button
+                document.getElementById('connectBtn').addEventListener('click', () => {
+                    const remoteId = document.getElementById('remoteId').value.trim();
+                    if (remoteId) this.connectToPeer(remoteId);
+                });
+
+                document.getElementById('remoteId').addEventListener('keypress', (e) => {
+                    if (e.key === 'Enter') {
+                        const remoteId = e.target.value.trim();
+                        if (remoteId) this.connectToPeer(remoteId);
+                    }
+                });
+                
+                // Tabs
+                document.querySelectorAll('.tab-button').forEach(button => {
+                    button.addEventListener('click', () => {
+                        document.querySelectorAll('.tab-button').forEach(b => b.classList.remove('active'));
+                        document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                        
+                        button.classList.add('active');
+                        document.getElementById(`${button.dataset.tab}-tab`).classList.add('active');
+                    });
+                });
+
+                // Theme Toggle
+                document.getElementById('themeToggle').addEventListener('click', () => this.toggleTheme());
+
+                // Copy Link
+                document.getElementById('copyLinkBtn').addEventListener('click', () => {
+                    const linkInput = document.getElementById('shareableLink');
+                    linkInput.select();
+                    document.execCommand('copy');
+                    this.showNotification('Link copiado!', 'success');
+                });
+
+                // Volume
+                document.getElementById('volumeSlider').addEventListener('input', (e) => {
+                    const volume = e.target.value / 100;
+                    document.querySelectorAll('audio').forEach(audio => audio.volume = volume);
+                });
+            }
+            
+            addToHistory(user, message) {
+                const time = new Date().toLocaleTimeString('pt-BR');
+                this.history.unshift({ user, message, time });
+                if (this.history.length > 20) this.history = this.history.slice(0, 20);
+                this.renderHistory();
+            }
+            
+            renderHistory() {
+                const historyList = document.getElementById('historyList');
+                historyList.innerHTML = '';
+                this.history.forEach(item => {
+                    const historyElement = document.createElement('div');
+                    historyElement.className = 'history-item';
+                    historyElement.innerHTML = `
+                        <div class="history-time">${item.time}</div>
+                        <div class="history-user">${item.user}</div>
+                        <div class="history-message">${item.message}</div>
+                    `;
+                    historyList.appendChild(historyElement);
+                });
+            }
+
+            updateShareableLink(peerId) {
+                const baseUrl = window.location.origin + window.location.pathname;
+                const shareableUrl = `${baseUrl}?room=${peerId}`;
+                document.getElementById('shareableLink').value = shareableUrl;
+
+                // Gerar QR Code
+                const qr = qrcode(0, 'M');
+                qr.addData(shareableUrl);
+                qr.make();
+                document.getElementById('qrcode').innerHTML = qr.createImgTag(5, 10);
+            }
+            
+            startSignalSimulation() {
+                setInterval(() => {
+                    const signalBars = document.querySelectorAll('.signal-bar');
+                    const strength = Math.floor(Math.random() * 5) + 1;
+                    signalBars.forEach((bar, index) => {
+                        bar.classList.toggle('active', index < strength);
+                    });
+                }, 2000);
+            }
+            
+            showNotification(message, type = 'info') {
+                const notification = document.getElementById('notification');
+                notification.textContent = message;
+                notification.className = `notification show ${type}`;
+                
+                setTimeout(() => {
+                    notification.classList.remove('show');
+                }, 3000);
+            }
+
+            loadTheme() {
+                const theme = localStorage.getItem('theme') || 'dark';
+                document.body.setAttribute('data-theme', theme);
+                this.updateThemeIcon(theme);
+            }
+
+            toggleTheme() {
+                const currentTheme = document.body.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                document.body.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                this.updateThemeIcon(newTheme);
+            }
+
+            updateThemeIcon(theme) {
+                const icon = document.querySelector('#themeToggle i');
+                icon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+        }
+        
+        // Inicializar o sistema
+        let radio;
+        document.addEventListener('DOMContentLoaded', () => {
+            radio = new RealRadioSystem();
+        });
+    </script>
+</body>
+</html>
