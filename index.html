@@ -436,7 +436,7 @@
             font-family: monospace;
         }
 
-        .share-link-input button, .connect-btn {
+        .share-link-input button, .connect-btn, .reconnect-btn {
             padding: 12px 20px;
             background: var(--accent-color);
             color: var(--bg-primary);
@@ -448,7 +448,12 @@
             text-transform: uppercase;
             letter-spacing: 1px;
         }
-        .share-link-input button:hover, .connect-btn:hover { transform: translateY(-2px); box-shadow: 0 0 15px var(--accent-glow); }
+        .share-link-input button:hover, .connect-btn:hover, .reconnect-btn:hover { transform: translateY(-2px); box-shadow: 0 0 15px var(--accent-glow); }
+        
+        .reconnect-btn {
+            background: var(--warning-color);
+            margin-top: 15px;
+        }
 
         .your-id-display {
             background: var(--bg-secondary);
@@ -535,6 +540,9 @@
                         <input type="text" id="remoteId" placeholder="Cole o ID do outro rádio aqui">
                         <button class="connect-btn" id="connectBtn">Conectar</button>
                     </div>
+                    <button class="reconnect-btn" id="reconnectBtn" style="display: none;">
+                        <i class="fas fa-redo"></i> Tentar Reconectar
+                    </button>
                 </div>
                 <div class="your-id-display">
                     <h3>Seu ID de Conexão:</h3>
@@ -556,7 +564,7 @@
                     <div class="signal-strength" id="signalStrength">
                         <div class="signal-bar"></div><div class="signal-bar"></div><div class="signal-bar"></div><div class="signal-bar"></div><div class="signal-bar"></div>
                     </div>
-                    <div id="status">AGUARDANDO</div>
+                    <div id="status">INICIALIZANDO...</div>
                 </div>
                 <button class="ptt-button" id="pttButton" disabled>
                     <i class="fas fa-microphone"></i>
@@ -600,50 +608,32 @@
             
             async init() {
                 this.setupEventListeners();
-                await this.initWebRTC();
+                await this.initializePeer();
                 this.startSignalSimulation();
-                // this.registerServiceWorker(); // DESABILITADO PARA EVITAR ERRO
                 this.setupInstallPrompt();
             }
 
-            // Função de registro do Service Worker foi desabilitada para evitar o erro TypeError
-            // registerServiceWorker() {
-            //     if ('serviceWorker' in navigator) {
-            //         const blob = new Blob([serviceWorkerCode], { type: 'application/javascript' });
-            //         const swUrl = URL.createObjectURL(blob);
-            //         navigator.serviceWorker.register(swUrl).catch(error => console.error('Falha no SW:', error));
-            //     }
-            // }
+            // Função robusta para inicializar o PeerJS
+            async initializePeer() {
+                this.updateStatus('Conectando ao servidor de rádio...');
+                this.destroyPeer(); // Garante que não haja instâncias antigas
 
-            setupInstallPrompt() {
-                window.addEventListener('beforeinstallprompt', (e) => {
-                    e.preventDefault();
-                    this.installPromptEvent = e;
-                    document.getElementById('installPrompt').classList.add('show');
-                });
-                document.getElementById('installBtn').addEventListener('click', () => {
-                    if (this.installPromptEvent) {
-                        this.installPromptEvent.prompt();
-                        this.installPromptEvent.userChoice.then(() => {
-                            this.installPromptEvent = null;
-                            document.getElementById('installPrompt').classList.remove('show');
-                        });
-                    }
-                });
-                document.getElementById('dismissBtn').addEventListener('click', () => {
-                    document.getElementById('installPrompt').classList.remove('show');
-                });
-            }
-            
-            async initWebRTC() {
-                this.updateStatus('Inicializando rádio...');
+                // Lista de servidores STUN/TURN para maior robustez
+                const iceServers = [
+                    { urls: 'stun:stun.l.google.com:19302' },
+                    { urls: 'stun:stun1.l.google.com:19302' },
+                    { urls: 'stun:stun2.l.google.com:19302' },
+                    { urls: 'stun:stun3.l.google.com:19302' },
+                    { urls: 'stun:stun4.l.google.com:19302' },
+                    // Adicionando mais servidores públicos para redundância
+                    { urls: 'stun:stun.stunprotocol.org:3478' },
+                    { urls: 'stun:stun.sipgate.net:10000' },
+                ];
+
                 try {
                     this.peer = new Peer({ 
                         debug: 2,
-                        config: {'iceServers': [
-                            { url: 'stun:stun.l.google.com:19302' },
-                            { url: 'stun:stun1.l.google.com:19302' }
-                        ]}
+                        config: { iceServers: iceServers }
                     });
                     
                     this.peer.on('open', (id) => {
@@ -652,6 +642,7 @@
                         this.addToHistory('Sistema', 'Rádio Online. ID: ' + id.substring(0, 8) + '...');
                         this.updateStatus('PRONTO');
                         this.showNotification('Rádio Online. Compartilhe seu ID para conectar.', 'success');
+                        document.getElementById('reconnectBtn').style.display = 'none';
                         
                         const urlParams = new URLSearchParams(window.location.search);
                         const remotePeerId = urlParams.get('room');
@@ -664,7 +655,8 @@
                     this.peer.on('error', (err) => {
                         console.error('PeerJS Error:', err);
                         this.updateStatus('ERRO DE CONEXÃO');
-                        this.showNotification(`Erro: ${err.type}. Verifique sua internet.`, 'error');
+                        this.showNotification(`Erro: Falha ao conectar. Verifique sua internet ou tente reconectar.`, 'error');
+                        document.getElementById('reconnectBtn').style.display = 'block';
                     });
                     
                     this.peer.on('call', async (call) => {
@@ -684,7 +676,36 @@
                     console.error('Erro ao inicializar WebRTC:', error);
                     this.updateStatus('FALHA CRÍTICA');
                     this.showNotification('Falha ao inicializar o rádio.', 'error');
+                    document.getElementById('reconnectBtn').style.display = 'block';
                 }
+            }
+
+            destroyPeer() {
+                if (this.peer) {
+                    this.peer.disconnect();
+                    this.peer.destroy();
+                    this.peer = null;
+                }
+            }
+
+            setupInstallPrompt() {
+                window.addEventListener('beforeinstallprompt', (e) => {
+                    e.preventDefault();
+                    this.installPromptEvent = e;
+                    document.getElementById('installPrompt').classList.add('show');
+                });
+                document.getElementById('installBtn').addEventListener('click', () => {
+                    if (this.installPromptEvent) {
+                        this.installPromptEvent.prompt();
+                        this.installPromptEvent.userChoice.then(() => {
+                            this.installPromptEvent = null;
+                            document.getElementById('installPrompt').classList.remove('show');
+                        });
+                    }
+                });
+                document.getElementById('dismissBtn').addEventListener('click', () => {
+                    document.getElementById('installPrompt').classList.remove('show');
+                });
             }
 
             handleIncomingTransmission() {
@@ -838,6 +859,12 @@
                         const remoteId = e.target.value.trim();
                         if (remoteId) this.connectToPeer(remoteId);
                     }
+                });
+
+                // Listener para o botão de reconectar
+                document.getElementById('reconnectBtn').addEventListener('click', () => {
+                    this.updateStatus('Tentando reconectar...');
+                    this.initializePeer();
                 });
                 
                 document.querySelectorAll('.tab-button').forEach(button => {
