@@ -3,101 +3,173 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Transmissor - Intercomunicador</title>
-    <!-- Biblioteca PeerJS -->
+    <title>Transmissor - Câmera Remota</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
-    <!-- Biblioteca para gerar QR Code -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #1a1a1a; color: #f0f0f0; text-align: center; padding: 20px; margin: 0; }
-        h1 { color: #4CAF50; }
         #container { max-width: 800px; margin: auto; background: #2a2a2a; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        h1 { color: #4CAF50; }
         #id-display { font-size: 18px; word-break: break-all; background: #333; padding: 10px; border-radius: 5px; margin: 10px 0; }
         #qrcode { margin: 20px auto; width: 256px; height: 256px; padding: 20px; background: white; border-radius: 10px; display: inline-block; }
         #status { font-size: 18px; margin: 20px 0; color: #ccc; }
-        #remote-video { 
+        #local-video { 
             width: 100%; 
             max-width: 640px; 
             height: auto; 
             background: #000; 
             border-radius: 10px; 
             margin-top: 20px; 
-            display: none; /* Escondido até a conexão */
+            display: none; /* Escondido até a câmera ligar */
+            transform: scaleX(-1); /* Espelha para o usuário */
         }
+        .controls { margin-top: 20px; }
+        button { 
+            padding: 15px 25px; 
+            font-size: 18px; 
+            border: none; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            background: #ff9800; 
+            color: white; 
+            transition: background 0.3s, transform 0.1s;
+            margin: 0 5px;
+        }
+        button:active { transform: scale(0.95); }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #start-camera-btn { background: #4CAF50; }
     </style>
 </head>
 <body>
     <div id="container">
-        <h1>📡 Transmissor</h1>
-        <p>Escaneie este QR Code com o dispositivo do Espectador para conectar.</p>
+        <h1>📡 Transmissor de Câmera</h1>
+        <p>Um espectador pode se conectar escaneando o QR Code abaixo.</p>
         
-        <div id="id-display">Gerando ID...</div>
+        <button id="start-camera-btn">1. Iniciar Câmera</button>
         
-        <div id="qrcode"></div>
+        <div id="id-display" style="display:none;">ID: ...</div>
+        <div id="qrcode" style="display:none;"></div>
         
-        <div id="status">Aguardando conexão...</div>
+        <div id="status">Clique em "Iniciar Câmera" para começar.</div>
         
-        <!-- Vídeo do espectador será exibido aqui -->
-        <video id="remote-video" autoplay playsinline></video>
+        <!-- Prévia da própria câmera do transmissor -->
+        <video id="local-video" autoplay muted playsinline></video>
+        
+        <div class="controls" id="flash-controls" style="display:none;">
+            <button id="flash-btn">🔦 Flash</button>
+        </div>
     </div>
 
     <script>
+        const startCameraBtn = document.getElementById('start-camera-btn');
         const idDisplay = document.getElementById('id-display');
         const statusDiv = document.getElementById('status');
         const qrcodeDiv = document.getElementById('qrcode');
-        const remoteVideo = document.getElementById('remote-video');
+        const localVideo = document.getElementById('local-video');
+        const flashBtn = document.getElementById('flash-btn');
+        const flashControls = document.getElementById('flash-controls');
 
-        // Inicializa o Peer. O ID será gerado automaticamente.
-        const peer = new Peer();
+        let peer = null;
+        let localStream = null;
+        let videoTrack = null;
+        let isFlashOn = false;
 
-        peer.on('open', (id) => {
-            console.log('Meu ID de peer é: ' + id);
-            idDisplay.textContent = `ID: ${id}`;
+        startCameraBtn.onclick = startCameraAndPeer;
+        flashBtn.onclick = toggleFlash;
+
+        async function startCameraAndPeer() {
+            startCameraBtn.disabled = true;
+            statusDiv.textContent = 'Acessando a câmera traseira...';
             
-            // Gera o QR Code com o ID
-            new QRCode(qrcodeDiv, {
-                text: id,
-                width: 256,
-                height: 256,
-                colorDark : "#000000",
-                colorLight : "#ffffff",
-                correctLevel : QRCode.CorrectLevel.H
-            });
-            
-            statusDiv.textContent = 'Pronto para receber uma conexão.';
-        });
+            try {
+                // Pede acesso à câmera traseira ('environment') e ao microfone
+                localStream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' }, 
+                    audio: true 
+                });
+                
+                localVideo.srcObject = localStream;
+                localVideo.style.display = 'block';
+                videoTrack = localStream.getVideoTracks()[0];
 
-        // Escuta por chamadas de mídia (vídeo e áudio)
-        peer.on('call', (call) => {
-            statusDiv.textContent = `Recebendo chamada de ${call.peer}...`;
-            
-            // Responde à chamada, sem enviar nosso próprio stream
-            call.answer();
+                // Verifica se o flash (torch) está disponível
+                const capabilities = videoTrack.getCapabilities();
+                if (capabilities.torch) {
+                    flashControls.style.display = 'block';
+                } else {
+                    console.log('Flash (torch) não disponível neste dispositivo.');
+                }
 
-            // Quando o stream do espectador chegar, exiba no vídeo
-            call.on('stream', (remoteStream) => {
-                console.log('Stream recebido.');
-                statusDiv.textContent = `✅ Conectado com ${call.peer}. Recebendo áudio e vídeo.`;
-                remoteVideo.srcObject = remoteStream;
-                remoteVideo.style.display = 'block'; // Mostra o vídeo
-            });
+                statusDiv.textContent = 'Câmera OK. Iniciando conexão...';
+                
+                // Inicia o Peer
+                peer = new Peer();
 
-            call.on('close', () => {
-                statusDiv.textContent = '❌ Conexão encerrada.';
-                remoteVideo.style.display = 'none';
-                remoteVideo.srcObject = null;
-            });
+                peer.on('open', (id) => {
+                    console.log('Meu ID de peer é: ' + id);
+                    idDisplay.style.display = 'block';
+                    idDisplay.textContent = `ID: ${id}`;
+                    qrcodeDiv.style.display = 'inline-block';
+                    
+                    new QRCode(qrcodeDiv, {
+                        text: id,
+                        width: 256,
+                        height: 256,
+                        colorDark : "#000000",
+                        colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.H
+                    });
+                    
+                    statusDiv.textContent = 'Pronto! Aguardando um espectador se conectar...';
+                });
 
-            call.on('error', (err) => {
-                statusDiv.textContent = `❌ Erro na chamada: ${err.message}`;
-                console.error('Erro na chamada:', err);
-            });
-        });
+                peer.on('connection', (conn) => {
+                    console.log('Conexão de dados recebida de:', conn.peer);
+                });
 
-        peer.on('error', (err) => {
-            statusDiv.textContent = `❌ Erro no Peer: ${err.type}`;
-            console.error('Erro no Peer:', err);
-        });
+                // Escuta por chamadas de mídia
+                peer.on('call', (call) => {
+                    statusDiv.textContent = `⏳ Espectador ${call.peer} está conectando...`;
+                    console.log('Recebendo chamada de: ' + call.peer);
+                    
+                    // Responde à chamada enviando nosso stream (câmera/mic)
+                    call.answer(localStream);
+
+                    call.on('close', () => {
+                        statusDiv.textContent = 'Espectador desconectado. Aguardando nova conexão...';
+                    });
+
+                    call.on('error', (err) => {
+                        statusDiv.textContent = `❌ Erro na chamada: ${err.message}`;
+                        console.error('Erro na chamada:', err);
+                    });
+                });
+
+                peer.on('error', (err) => {
+                    statusDiv.textContent = `❌ Erro no Peer: ${err.type}`;
+                    console.error('Erro no Peer:', err);
+                });
+
+            } catch (err) {
+                statusDiv.textContent = `❌ Erro ao acessar a câmera: ${err.message}`;
+                console.error(err);
+                startCameraBtn.disabled = false;
+            }
+        }
+        
+        async function toggleFlash() {
+            if (!videoTrack) return;
+            try {
+                isFlashOn = !isFlashOn;
+                await videoTrack.applyConstraints({
+                    advanced: [{ torch: isFlashOn }]
+                });
+                flashBtn.textContent = isFlashOn ? '🔦 Flash: ON' : '🔦 Flash: OFF';
+            } catch (err) {
+                console.error('Erro ao controlar o flash:', err);
+                flashBtn.disabled = true;
+            }
+        }
     </script>
 </body>
 </html>
