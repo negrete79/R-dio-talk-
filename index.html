@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Câmera Remota</title>
+    <title>Câmera Remota (Depuração)</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
@@ -13,52 +13,20 @@
         #id-display { font-size: 18px; word-break: break-all; background: #333; padding: 10px; border-radius: 5px; margin: 10px 0; }
         #qrcode { margin: 20px auto; width: 256px; height: 256px; padding: 20px; background: white; border-radius: 10px; display: inline-block; }
         #status { font-size: 18px; margin: 20px 0; color: #ccc; }
-        .connected-indicator { 
-            display: none; 
-            font-size: 24px; 
-            color: #4CAF50;
-            animation: pulse 1.5s infinite;
-        }
-        @keyframes pulse {
-            0% { opacity: 1; }
-            50% { opacity: 0.5; }
-            100% { opacity: 1; }
-        }
-        .error-message {
-            color: #ff5252;
-            margin: 10px 0;
-            padding: 10px;
-            background: rgba(255, 82, 82, 0.1);
-            border-radius: 5px;
-            display: none;
-        }
-        #retry-button {
-            background: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 20px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-            display: none;
-        }
+        .connected-indicator { display: none; font-size: 24px; color: #4CAF50; animation: pulse 1.5s infinite; }
+        @keyframes pulse { 0% { opacity: 1; } 50% { opacity: 0.5; } 100% { opacity: 1; } }
+        .error-message { color: #ff5252; margin: 10px 0; padding: 10px; background: rgba(255, 82, 82, 0.1); border-radius: 5px; display: none; }
     </style>
 </head>
 <body>
     <div id="container">
         <h1>📷 Câmera Remota</h1>
-        <p>Escaneie este QR Code para conectar e controlar este dispositivo.</p>
-        
+        <p>Escaneie este QR Code para conectar.</p>
         <div id="id-display">ID: ...</div>
         <div id="qrcode"></div>
-        
         <div id="status">Iniciando...</div>
         <div id="error-message" class="error-message"></div>
-        <button id="retry-button">Tentar Novamente</button>
-        
-        <div class="connected-indicator" id="connected-indicator">
-            <p>✅ Conectado e Transmitindo em Tempo Real</p>
-        </div>
+        <div class="connected-indicator" id="connected-indicator"><p>✅ Conectado e Transmitindo</p></div>
     </div>
 
     <script>
@@ -67,153 +35,110 @@
         const qrcodeDiv = document.getElementById('qrcode');
         const connectedIndicator = document.getElementById('connected-indicator');
         const errorMessageDiv = document.getElementById('error-message');
-        const retryButton = document.getElementById('retry-button');
 
         let peer = null;
         let localStream = null;
         let videoTrack = null;
-        let isFlashOn = false;
         let mediaCall = null;
         let dataConn = null;
 
-        // WebRTC (PeerJS) precisa de HTTPS para funcionar.
-        if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
-            statusDiv.textContent = '❌ Erro: Esta aplicação requer uma conexão segura (HTTPS).';
-        }
-
         async function init() {
-            statusDiv.textContent = 'Acessando câmera traseira...';
+            statusDiv.textContent = 'Acessando câmera...';
             try {
-                // CAPTURA DE VÍDEO OTIMIZADA PARA TEMPO REAL
-                // Usamos uma resolução mais baixa (640x480) e uma taxa de quadros padrão (24-30 fps)
-                // para garantir que a transmissão seja fluida e com baixo atraso, mesmo em redes mais lentas.
-                localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { 
-                        facingMode: 'environment', 
-                        width: { ideal: 640 }, 
-                        height: { ideal: 480 },
-                        frameRate: { ideal: 24, max: 30 }
-                    }, 
-                    audio: true 
-                });
+                // Simplificamos as restrições para evitar problemas de compatibilidade
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
                 videoTrack = localStream.getVideoTracks()[0];
-                console.log('Câmera iniciada em modo de baixa latência.');
+                
+                console.log("[CÂMERA] SUCESSO! Stream local obtido.");
+                console.log("[CÂMERA] Tracks ativas:", localStream.getTracks());
+                console.log("[CÂMERA] Configurações do vídeo:", videoTrack.getSettings());
 
                 peer = new Peer({
-                    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
+                    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] },
+                    debug: 3 // Ativa logs detalhados do PeerJS no console
                 });
 
                 peer.on('open', (id) => {
-                    console.log('Meu ID de peer é: ' + id);
+                    console.log('[CÂMERA] Meu Peer ID é: ' + id);
                     idDisplay.textContent = `ID: ${id}`;
-                    
-                    qrcodeDiv.innerHTML = '';
-                    new QRCode(qrcodeDiv, {
-                        text: id,
-                        width: 256,
-                        height: 256,
-                        colorDark : "#000000",
-                        colorLight : "#ffffff",
-                        correctLevel : QRCode.CorrectLevel.H
-                    });
-                    
-                    statusDiv.textContent = 'Pronto para conexão.';
+                    new QRCode(qrcodeDiv, { text: id, width: 256, height: 256 });
+                    statusDiv.textContent = 'Pronto para conexão. Aguardando chamada...';
                 });
 
-                // ESCUTA POR CHAMADAS DE MÍDIA (para enviar o vídeo/áudio)
                 peer.on('call', (call) => {
-                    console.log('Recebendo chamada de mídia de:', call.peer);
-                    if (mediaCall) return; // Ignora se já estiver em uma chamada
+                    console.log(`[CÂMERA] Chamada recebida de: ${call.peer}`);
                     
+                    if (mediaCall) {
+                        console.log("[CÂMERA] Já estou em uma chamada. Ignorando nova.");
+                        return;
+                    }
+
+                    if (!localStream || !localStream.active) {
+                        console.error("[CÂMERA] ERRO: Chamada recebida, mas não há stream local para enviar!");
+                        call.close();
+                        return;
+                    }
+                    
+                    console.log("[CÂMERA] Respondendo à chamada com meu stream local...");
                     mediaCall = call;
-                    call.answer(localStream); // Envia nosso stream para quem ligou
+                    call.answer(localStream);
                     onConnectionEstablished(call.peer);
                     
                     call.on('close', () => {
+                        console.log('[CÂMERA] Chamada encerrada.');
                         mediaCall = null;
                         onConnectionClosed();
                     });
+                    
                     call.on('error', (err) => {
-                        console.error('Erro na chamada de mídia:', err);
+                        console.error('[CÂMERA] Erro na chamada:', err);
                         mediaCall = null;
                         onConnectionClosed();
                     });
                 });
 
-                // ESCUTA POR CONEXÕES DE DADOS (para receber comandos como o flash)
                 peer.on('connection', (conn) => {
-                    console.log('Recebendo conexão de dados de:', conn.peer);
-                    if (dataConn) return; // Ignora se já houver uma conexão
+                    console.log(`[CÂMERA] Conexão de dados recebida de: ${conn.peer}`);
+                    if (dataConn) return;
                     
                     dataConn = conn;
-                    onConnectionEstablished(conn.peer);
-
-                    conn.on('data', (data) => {
-                        if (data === 'toggleFlash') toggleFlash();
-                    });
-
-                    conn.on('close', () => {
-                        dataConn = null;
-                        onConnectionClosed();
-                    });
-                    conn.on('error', (err) => {
-                        console.error('Erro na conexão de dados:', err);
-                        dataConn = null;
-                        onConnectionClosed();
-                    });
+                    conn.on('data', (data) => { if (data === 'toggleFlash') toggleFlash(); });
+                    conn.on('close', () => { dataConn = null; onConnectionClosed(); });
                 });
 
                 peer.on('error', (err) => {
-                    console.error('Erro no Peer:', err);
-                    showError(`Erro: ${err.type}`);
-                    retryButton.style.display = 'block';
+                    console.error('[CÂMERA] Erro no Peer:', err);
+                    statusDiv.textContent = `❌ Erro: ${err.type}`;
+                    errorMessageDiv.textContent = `Erro: ${err.type} - ${err.message}`;
+                    errorMessageDiv.style.display = 'block';
                 });
 
-                retryButton.onclick = restartPeer;
-
             } catch (err) {
-                console.error(err);
+                console.error('[CÂMERA] Erro ao acessar a câmera:', err);
                 statusDiv.textContent = `❌ Erro na câmera: ${err.message}`;
-                showError(`Erro na câmera: ${err.message}`);
-                retryButton.style.display = 'block';
-                retryButton.onclick = init;
+                errorMessageDiv.textContent = `Erro na câmera: ${err.message}`;
+                errorMessageDiv.style.display = 'block';
             }
-        }
-
-        function showError(message) {
-            errorMessageDiv.textContent = message;
-            errorMessageDiv.style.display = 'block';
-        }
-
-        function restartPeer() {
-            if (peer) peer.destroy();
-            peer = null;
-            mediaCall = null;
-            dataConn = null;
-            retryButton.style.display = 'none';
-            errorMessageDiv.style.display = 'none';
-            init();
         }
 
         function onConnectionEstablished(peerId) {
             if (connectedIndicator.style.display === 'block') return;
-            
+            console.log(`[CÂMERA] Conexão estabelecida com ${peerId}.`);
             statusDiv.style.display = 'none';
             qrcodeDiv.style.display = 'none';
             idDisplay.style.display = 'none';
             connectedIndicator.style.display = 'block';
             document.querySelector('h1').textContent = '📷 Transmitindo';
-            document.querySelector('p').textContent = `Conectado com ${peerId}`;
         }
 
         function onConnectionClosed() {
             if (!mediaCall && !dataConn) {
+                console.log("[CÂMERA] Todas as conexões foram fechadas.");
                 statusDiv.style.display = 'block';
                 qrcodeDiv.style.display = 'inline-block';
                 idDisplay.style.display = 'block';
                 connectedIndicator.style.display = 'none';
                 document.querySelector('h1').textContent = '📷 Câmera Remota';
-                document.querySelector('p').textContent = 'Escaneie este QR Code para conectar e controlar este dispositivo.';
             }
         }
         
@@ -222,15 +147,14 @@
             try {
                 const capabilities = videoTrack.getCapabilities();
                 if (!capabilities.torch) return;
-                
-                isFlashOn = !isFlashOn;
+                const isFlashOn = !videoTrack.getSettings().torch;
                 await videoTrack.applyConstraints({ advanced: [{ torch: isFlashOn }] });
+                console.log(isFlashOn ? '[CÂMERA] Flash ligado.' : '[CÂMERA] Flash desligado.');
             } catch (err) {
-                console.error('Erro ao controlar o flash:', err);
+                console.error('[CÂMERA] Erro ao controlar o flash:', err);
             }
         }
 
-        // Inicia tudo ao carregar a página
         init();
     </script>
 </body>
