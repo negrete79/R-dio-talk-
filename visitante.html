@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Espectador - Visualizador Remoto</title>
+    <title>Espectador - Controle Remoto</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #121212; color: #ffffff; text-align: center; margin: 0; padding: 0; }
         #scan-view, #call-view { height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
         #scan-view { background: #1e1e1e; }
-        #call-view { background: #000; }
+        #call-view { background: #000; position: relative; }
         h1 { margin-top: 0; }
         #status { font-size: 18px; margin: 20px; color: #ccc; }
         #qr-video { width: 100%; max-width: 400px; height: auto; border-radius: 10px; }
@@ -19,27 +19,28 @@
             object-fit: contain; /* Ajusta o vídeo para caber na tela sem cortar */
             background: #000;
         }
-        .controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); }
+        .controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; }
         button { 
             padding: 15px 25px; 
             font-size: 18px; 
             border: none; 
             border-radius: 50px; 
             cursor: pointer; 
-            background: #f44336; 
             color: white; 
             transition: background 0.3s, transform 0.1s;
         }
         button:active { transform: scale(0.95); }
         button:disabled { background: #555; cursor: not-allowed; }
+        #flash-btn { background: #ff9800; }
+        #disconnect-btn { background: #f44336; }
     </style>
 </head>
 <body>
 
     <!-- TELA 1: Escaneamento do QR Code -->
     <div id="scan-view">
-        <h1>📷 Conectar ao Transmissor</h1>
-        <p>Aponte a câmera para o QR Code na tela do outro dispositivo.</p>
+        <h1>📷 Conectar à Câmera Remota</h1>
+        <p>Aponte a câmera para o QR Code no outro dispositivo.</p>
         <video id="qr-video" autoplay playsinline></video>
         <div id="status">Clique em "Iniciar Scanner" para começar.</div>
         <button id="start-scan-btn">Iniciar Scanner</button>
@@ -47,9 +48,10 @@
 
     <!-- TELA 2: Vídeo Recebido (inicialmente escondida) -->
     <div id="call-view" style="display: none;">
-        <!-- Vídeo do transmissor será exibido aqui -->
+        <!-- Vídeo da câmera remota será exibido aqui -->
         <video id="remote-video" autoplay playsinline></video>
         <div class="controls">
+            <button id="flash-btn" disabled>🔦 Flash</button>
             <button id="disconnect-btn">Desconectar</button>
         </div>
     </div>
@@ -62,32 +64,30 @@
         const remoteVideo = document.getElementById('remote-video');
         const statusDiv = document.getElementById('status');
         const startScanBtn = document.getElementById('start-scan-btn');
+        const flashBtn = document.getElementById('flash-btn');
         const disconnectBtn = document.getElementById('disconnect-btn');
 
         let peer = null;
-        let currentCall = null;
+        let mediaCall = null;
+        let dataConn = null;
         let barcodeDetector = null;
 
-        // Verifica se o navegador suporta a API de detecção de códigos de barras
         if (!('BarcodeDetector' in window)) {
-            statusDiv.textContent = '❌ Seu navegador não suporta escaneamento de QR Code. Tente usar o Chrome ou Firefox mais recente.';
+            statusDiv.textContent = '❌ Navegador não suporta escaneamento de QR Code. Use o Chrome ou Firefox.';
             startScanBtn.disabled = true;
         } else {
             barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
         }
 
         startScanBtn.onclick = startScanning;
+        flashBtn.onclick = () => { if(dataConn && dataConn.open) dataConn.send('toggleFlash'); };
         disconnectBtn.onclick = disconnect;
 
         async function startScanning() {
             startScanBtn.disabled = true;
             statusDiv.textContent = 'Acessando a câmera para o scanner...';
-            
             try {
-                // Pede acesso à câmera traseira para escanear
-                const stream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' } 
-                });
+                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
                 qrVideo.srcObject = stream;
                 statusDiv.textContent = 'Procurando por um QR Code...';
                 detectQRCode();
@@ -107,7 +107,7 @@
                     stopScanning();
                     connect(scannedId);
                 } else {
-                    requestAnimationFrame(detectQRCode); // Continua escaneando
+                    requestAnimationFrame(detectQRCode);
                 }
             } catch (err) {
                 console.error('Erro ao detectar QR Code:', err);
@@ -116,7 +116,6 @@
         }
 
         function stopScanning() {
-            // Para o stream da câmera de escaneamento
             const tracks = qrVideo.srcObject.getTracks();
             tracks.forEach(track => track.stop());
             qrVideo.srcObject = null;
@@ -124,62 +123,63 @@
 
         function connect(remoteId) {
             statusDiv.textContent = `Conectando com ${remoteId}...`;
-            
-            // Inicia o Peer e faz a chamada (sem enviar nosso próprio stream)
             peer = new Peer();
             
             peer.on('open', () => {
-                // Faz a chamada de mídia para o transmissor, sem enviar áudio/vídeo
-                currentCall = peer.call(remoteId);
-                
-                // Quando o stream do transmissor chegar, exiba no vídeo
-                currentCall.on('stream', (remoteStream) => {
-                    console.log('Stream recebido do transmissor.');
-                    statusDiv.textContent = '✅ Conectado! Recebendo transmissão.';
+                // --- 1. INICIA A CHAMADA DE MÍDIA (RECEBER VÍDEO) ---
+                mediaCall = peer.call(remoteId);
+                mediaCall.on('stream', (remoteStream) => {
+                    console.log('Stream de vídeo recebido.');
                     remoteVideo.srcObject = remoteStream;
-                    
-                    // Mudar para a tela de vídeo
-                    scanView.style.display = 'none';
-                    callView.style.display = 'flex';
+                    switchToCallView();
+                });
+                mediaCall.on('close', disconnect);
+                mediaCall.on('error', (err) => {
+                    console.error('Erro na chamada de mídia:', err);
+                    statusDiv.textContent = `❌ Erro de vídeo: ${err.message}`;
                 });
 
-                currentCall.on('close', () => {
-                    console.log('Chamada encerrada pelo transmissor.');
-                    disconnect();
+                // --- 2. INICIA A CONEXÃO DE DADOS (ENVIAR COMANDOS) ---
+                dataConn = peer.connect(remoteId);
+                dataConn.on('open', () => {
+                    console.log('Conexão de dados aberta. Controle do flash habilitado.');
+                    flashBtn.disabled = false;
                 });
-
-                currentCall.on('error', (err) => {
-                    statusDiv.textContent = `❌ Erro na chamada: ${err.message}`;
-                    console.error(err);
-                    disconnect();
+                dataConn.on('close', disconnect);
+                dataConn.on('error', (err) => {
+                    console.error('Erro na conexão de dados:', err);
+                    flashBtn.disabled = true;
                 });
             });
 
             peer.on('error', (err) => {
                 statusDiv.textContent = `❌ Erro de conexão: ${err.message}`;
                 console.error(err);
-                disconnect();
             });
         }
         
+        function switchToCallView() {
+            scanView.style.display = 'none';
+            callView.style.display = 'flex';
+            statusDiv.textContent = '✅ Conectado! Controle a câmera remota.';
+        }
+        
         function disconnect() {
-            if (currentCall) {
-                currentCall.close();
-            }
-            if (peer) {
-                peer.destroy();
-            }
+            if (mediaCall) mediaCall.close();
+            if (dataConn) dataConn.close();
+            if (peer) peer.destroy();
             if (remoteVideo.srcObject) {
                 remoteVideo.srcObject.getTracks().forEach(track => track.stop());
             }
             
-            // Resetar estado
-            currentCall = null;
+            mediaCall = null;
+            dataConn = null;
             peer = null;
             remoteVideo.srcObject = null;
+            flashBtn.disabled = true;
+            flashBtn.textContent = '🔦 Flash';
             startScanBtn.disabled = false;
 
-            // Voltar para a tela de scan
             callView.style.display = 'none';
             scanView.style.display = 'flex';
             statusDiv.textContent = 'Desconectado. Clique em "Iniciar Scanner" para uma nova conexão.';
