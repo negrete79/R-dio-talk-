@@ -3,8 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Vigilância (Scanner)</title>
-    <!-- Bibliotecas necessárias -->
+    <title>Painel de Vigilância (Scanner com Seletor)</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
@@ -15,88 +14,136 @@
         video { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
         .placeholder { color: #555; font-size: 18px; }
         .status-bar { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: white; padding: 5px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; font-size: 12px; }
-        .scanner-container { max-width: 400px; margin: 20px auto; }
-        #reader { width: 100%; }
-        .controls { background: #1e1e1e; padding: 20px; border-radius: 12px; max-width: 400px; margin: 20px auto; }
-        button { background: #81c784; color: #121212; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-bottom: 10px; }
-        button:hover { background: #66bb6a; }
+        .controls { background: #1e1e1e; padding: 20px; border-radius: 12px; max-width: 500px; margin: 20px auto; }
+        .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
+        input { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #2c2c2c; color: #e0e0e0; font-size: 16px; }
+        button { background: #03dac6; color: #121212; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; white-space: nowrap; width: 100%; margin-bottom: 10px; }
+        button:hover { background: #03c1b8; }
         button:disabled { background: #555; cursor: not-allowed; }
-        .instructions { background: #333; padding: 15px; border-radius: 8px; margin-top: 20px; text-align: left; }
+        #reader { width: 300px; margin: 20px auto; }
+        #scan-status { margin-top: 10px; font-size: 14px; color: #aaa; min-height: 20px; }
+        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #2c2c2c; color: #e0e0e0; font-size: 16px; margin-bottom: 15px; }
+        .scanner-controls { display: flex; gap: 10px; }
+        .scanner-controls button { flex-grow: 1; }
     </style>
 </head>
 <body>
     <h1>📺 Painel de Vigilância</h1>
     
     <div class="viewer-grid" id="video-grid">
-        <!-- Os vídeos das câmeras aparecerão aqui dinamicamente -->
+        <!-- Os vídeos das câmeras aparecerão aqui -->
     </div>
     
     <div class="controls">
         <h3>Conectar Nova Câmera</h3>
-        <button id="start-scan-btn">Iniciar Scanner de QR Code</button>
-        <button id="stop-scan-btn" disabled>Parar Scanner</button>
+        
+        <div class="input-group">
+            <input type="text" id="manual-id-input" placeholder="Digite o ID da câmera manualmente">
+            <button id="connect-manual-btn">Conectar</button>
+        </div>
+
+        <label for="scanner-camera-select" style="display: block; text-align: left; margin-bottom: 5px; font-weight: bold;">Escolha a Câmera para Escanear:</label>
+        <select id="scanner-camera-select"></select>
+        
+        <div class="scanner-controls">
+            <button id="start-scan-btn">Escanear QR Code</button>
+            <button id="stop-scan-btn" disabled>Parar Scanner</button>
+        </div>
+        <div id="scan-status"></div>
     </div>
 
-    <div id="reader" style="width: 300px; margin: 20px auto;"></div>
-    
-    <div class="instructions">
-        <strong>Como usar:</strong><br>
-        1. Clique em "Iniciar Scanner de QR Code".<br>
-        2. Aponte a câmera deste celular para a tela do celular da câmera.<br>
-        3. Mantenha o QR Code centralizado até a conexão ser feita.
-    </div>
+    <div id="reader"></div>
 
     <script>
+        const videoGrid = document.getElementById('video-grid');
+        const manualIdInput = document.getElementById('manual-id-input');
+        const connectManualBtn = document.getElementById('connect-manual-btn');
         const startScanBtn = document.getElementById('start-scan-btn');
         const stopScanBtn = document.getElementById('stop-scan-btn');
-        const videoGrid = document.getElementById('video-grid');
+        const scanStatusDiv = document.getElementById('scan-status');
+        const scannerCameraSelect = document.getElementById('scanner-camera-select');
         
         let peer;
         let html5QrCode;
         let connectedCameras = 0;
+        let allScannerCameras = [];
 
         async function init() {
             peer = new Peer();
             peer.on('open', () => console.log('Espectador pronto.'));
             peer.on('error', (err) => console.error('Erro no PeerJS (Espectador):', err));
+            
+            // Descobre as câmeras para o scanner ao iniciar
+            await discoverScannerCameras();
         }
 
-        function onScanSuccess(decodedText, decodedResult) {
-            // Parar o scanner imediatamente para não conectar múltiplas vezes
+        // Função para descobrir câmeras para o scanner
+        async function discoverScannerCameras() {
+            scanStatusDiv.textContent = 'Descobrindo câmeras para o scanner...';
+            try {
+                const devices = await Html5Qrcode.getCameras();
+                allScannerCameras = devices;
+                scannerCameraSelect.innerHTML = '';
+
+                if (devices && devices.length) {
+                    let defaultCameraIndex = 0;
+                    devices.forEach((camera, index) => {
+                        const option = document.createElement('option');
+                        option.value = camera.id;
+                        const label = camera.label || `Câmera ${index + 1}`;
+                        option.text = label.includes('back') || label.includes('traseira') || label.includes('environment') ? `📷 ${label} (Provável Traseira)` : `🤳 ${label}`;
+                        scannerCameraSelect.appendChild(option);
+                        // Define a câmera traseira como padrão
+                        if (option.text.includes('Traseira')) {
+                            defaultCameraIndex = index;
+                        }
+                    });
+                    scannerCameraSelect.selectedIndex = defaultCameraIndex;
+                    startScanBtn.disabled = false;
+                    scanStatusDiv.textContent = 'Câmeras prontas. Selecione e clique em "Escanear".';
+                } else {
+                    scanStatusDiv.textContent = 'Nenhuma câmera encontrada para escanear.';
+                    startScanBtn.disabled = true;
+                }
+            } catch (err) {
+                console.error("Erro ao descobrir câmeras do scanner:", err);
+                scanStatusDiv.textContent = 'Erro ao buscar câmeras. Verifique as permissões.';
+                startScanBtn.disabled = true;
+            }
+        }
+
+        function onScanSuccess(decodedText) {
             html5QrCode.stop();
             stopScanBtn.disabled = true;
             startScanBtn.disabled = false;
-
-            console.log(`Código escaneado: ${decodedText}`);
+            scanStatusDiv.textContent = `QR Code encontrado: ${decodedText}`;
             connectToCamera(decodedText);
         }
 
         function onScanFailure(error) {
             // Ignora falhas de scan, é normal
-            // console.warn(`Falha no scan: ${error}`);
         }
 
         startScanBtn.onclick = () => {
+            const selectedCameraId = scannerCameraSelect.value;
+            if (!selectedCameraId) return;
+
+            scanStatusDiv.textContent = 'Iniciando scanner...';
             html5QrCode = new Html5Qrcode("reader");
-            Html5Qrcode.getCameras().then(devices => {
-                if (devices && devices.length) {
-                    const cameraId = devices[0].id;
-                    html5QrCode.start(
-                        cameraId, 
-                        { fps: 10, qrbox: { width: 250, height: 250 } },
-                        onScanSuccess, 
-                        onScanFailure
-                    ).then(() => {
-                        startScanBtn.disabled = true;
-                        stopScanBtn.disabled = false;
-                    }).catch((err) => {
-                        console.error(`Não foi possível iniciar o scanner: ${err}`);
-                        alert("Não foi possível acessar a câmera para escanear. Verifique as permissões.");
-                    });
-                }
-            }).catch(err => {
-                console.error("Erro ao obter câmeras:", err);
-                alert("Não foi possível encontrar uma câmera neste dispositivo.");
+            
+            html5QrCode.start(
+                selectedCameraId, 
+                { fps: 10, qrbox: { width: 250, height: 250 } },
+                onScanSuccess, 
+                onScanFailure
+            ).then(() => {
+                startScanBtn.disabled = true;
+                stopScanBtn.disabled = false;
+                scanStatusDiv.textContent = 'Escaneando... Aponte para o QR Code.';
+            }).catch((err) => {
+                console.error(`Não foi possível iniciar o scanner: ${err}`);
+                scanStatusDiv.textContent = `Falha ao iniciar scanner: ${err}`;
+                startScanBtn.disabled = false;
             });
         };
 
@@ -105,36 +152,41 @@
                 html5QrCode.stop().then(() => {
                     stopScanBtn.disabled = true;
                     startScanBtn.disabled = false;
+                    scanStatusDiv.textContent = 'Scanner parado.';
                 }).catch((err) => {
                     console.error(`Falha ao parar o scanner: ${err}`);
                 });
             }
         };
 
+        connectManualBtn.onclick = () => {
+            const cameraId = manualIdInput.value.trim();
+            if (cameraId) {
+                connectToCamera(cameraId);
+            }
+        };
+
         function connectToCamera(cameraId) {
             if (connectedCameras >= 2) {
-                alert("Você já conectou o número máximo de câmeras (2).");
+                alert("Número máximo de câmeras conectadas.");
                 return;
             }
-
+            scanStatusDiv.textContent = `Conectando a ${cameraId}...`;
             try {
                 const call = peer.call(cameraId);
-                
                 call.on('stream', (remoteStream) => {
                     console.log(`Recebendo stream de ${cameraId}`);
                     addVideoToGrid(cameraId, remoteStream);
                     connectedCameras++;
+                    scanStatusDiv.textContent = `Conectado a ${cameraId}!`;
                 });
-
                 call.on('close', () => {
-                    console.log(`Conexão com ${cameraId} fechada.`);
                     removeVideoFromGrid(cameraId);
                     connectedCameras--;
                 });
-
             } catch (err) {
                 console.error('Erro ao conectar:', err);
-                alert(`Não foi possível conectar à câmera. O QR Code pode ser inválido ou a câmera está offline.`);
+                scanStatusDiv.textContent = `Falha ao conectar a ${cameraId}.`;
             }
         }
 
@@ -142,26 +194,17 @@
             const videoContainer = document.createElement('div');
             videoContainer.className = 'video-container';
             videoContainer.id = `container-${cameraId}`;
-
             const video = document.createElement('video');
-            video.autoplay = true;
-            video.playsinline = true;
-            video.srcObject = stream;
-
+            video.autoplay = true; video.playsinline = true; video.srcObject = stream;
             const statusBar = document.createElement('div');
-            statusBar.className = 'status-bar';
-            statusBar.textContent = cameraId;
-
-            videoContainer.appendChild(video);
-            videoContainer.appendChild(statusBar);
+            statusBar.className = 'status-bar'; statusBar.textContent = cameraId;
+            videoContainer.appendChild(video); videoContainer.appendChild(statusBar);
             videoGrid.appendChild(videoContainer);
         }
         
         function removeVideoFromGrid(cameraId) {
             const container = document.getElementById(`container-${cameraId}`);
-            if (container) {
-                container.remove();
-            }
+            if (container) container.remove();
         }
 
         init();
