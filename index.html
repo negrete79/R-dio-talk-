@@ -24,6 +24,24 @@
             50% { opacity: 0.5; }
             100% { opacity: 1; }
         }
+        .error-message {
+            color: #ff5252;
+            margin: 10px 0;
+            padding: 10px;
+            background: rgba(255, 82, 82, 0.1);
+            border-radius: 5px;
+            display: none;
+        }
+        #retry-button {
+            background: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -35,6 +53,9 @@
         <div id="qrcode"></div>
         
         <div id="status">Iniciando...</div>
+        <div id="error-message" class="error-message"></div>
+        <button id="retry-button">Tentar Novamente</button>
+        
         <div class="connected-indicator" id="connected-indicator">
             <p>✅ Conectado e Transmitindo</p>
         </div>
@@ -45,11 +66,16 @@
         const statusDiv = document.getElementById('status');
         const qrcodeDiv = document.getElementById('qrcode');
         const connectedIndicator = document.getElementById('connected-indicator');
+        const errorMessageDiv = document.getElementById('error-message');
+        const retryButton = document.getElementById('retry-button');
 
         let peer = null;
         let localStream = null;
         let videoTrack = null;
         let isFlashOn = false;
+        let currentPeerId = null;
+        let mediaCall = null;
+        let dataConn = null;
 
         // Inicia o Peer e a câmera
         async function init() {
@@ -63,14 +89,24 @@
                 videoTrack = localStream.getVideoTracks()[0];
                 console.log('Câmera traseira iniciada.');
 
-                // 2. Inicia o Peer
-                peer = new Peer();
+                // 2. Inicia o Peer com configuração explícita de servidores STUN
+                peer = new Peer({
+                    config: {
+                        iceServers: [
+                            { url: 'stun:stun.l.google.com:19302' },
+                            { url: 'stun:stun1.l.google.com:19302' },
+                            // Adicione servidores TURN se necessário
+                        ]
+                    }
+                });
 
                 peer.on('open', (id) => {
                     console.log('Meu ID de peer é: ' + id);
                     idDisplay.textContent = `ID: ${id}`;
+                    currentPeerId = id;
                     
                     // Gera o QR Code
+                    qrcodeDiv.innerHTML = ''; // Limpa o conteúdo anterior
                     new QRCode(qrcodeDiv, {
                         text: id,
                         width: 256,
@@ -86,20 +122,43 @@
                 // --- ESCUTA POR CHAMADAS DE MÍDIA ---
                 peer.on('call', (call) => {
                     console.log('Recebendo chamada de mídia de:', call.peer);
+                    
+                    // Verifica se já há uma chamada ativa
+                    if (mediaCall) {
+                        console.log('Já existe uma chamada ativa. Ignorando nova chamada.');
+                        return;
+                    }
+                    
                     // Responde à chamada enviando nosso stream
+                    mediaCall = call;
                     call.answer(localStream);
                     onConnectionEstablished(call.peer);
                     
                     call.on('close', () => {
                         console.log('Chamada de mídia encerrada.');
+                        mediaCall = null;
                         onConnectionClosed();
                     });
-                    call.on('error', (err) => console.error('Erro na chamada de mídia:', err));
+                    
+                    call.on('error', (err) => {
+                        console.error('Erro na chamada de mídia:', err);
+                        showError(`Erro na chamada: ${err.message}`);
+                        mediaCall = null;
+                        onConnectionClosed();
+                    });
                 });
 
                 // --- ESCUTA POR CONEXÕES DE DADOS (COMANDOS) ---
                 peer.on('connection', (conn) => {
                     console.log('Recebendo conexão de dados de:', conn.peer);
+                    
+                    // Verifica se já há uma conexão de dados ativa
+                    if (dataConn) {
+                        console.log('Já existe uma conexão de dados ativa. Ignorando nova conexão.');
+                        return;
+                    }
+                    
+                    dataConn = conn;
                     onConnectionEstablished(conn.peer);
 
                     conn.on('data', (data) => {
@@ -111,23 +170,65 @@
 
                     conn.on('close', () => {
                         console.log('Conexão de dados encerrada.');
+                        dataConn = null;
                         onConnectionClosed();
                     });
-                    conn.on('error', (err) => console.error('Erro na conexão de dados:', err));
+                    
+                    conn.on('error', (err) => {
+                        console.error('Erro na conexão de dados:', err);
+                        showError(`Erro na conexão: ${err.message}`);
+                        dataConn = null;
+                        onConnectionClosed();
+                    });
                 });
 
                 peer.on('error', (err) => {
                     statusDiv.textContent = `❌ Erro: ${err.type}`;
                     console.error('Erro no Peer:', err);
+                    showError(`Erro: ${err.type} - ${err.message}`);
+                    retryButton.style.display = 'block';
                 });
+
+                retryButton.onclick = () => {
+                    retryButton.style.display = 'none';
+                    errorMessageDiv.style.display = 'none';
+                    restartPeer();
+                };
 
             } catch (err) {
                 statusDiv.textContent = `❌ Erro na câmera: ${err.message}`;
                 console.error(err);
+                showError(`Erro na câmera: ${err.message}`);
+                retryButton.style.display = 'block';
+                retryButton.onclick = () => {
+                    retryButton.style.display = 'none';
+                    errorMessageDiv.style.display = 'none';
+                    init();
+                };
             }
         }
 
+        function showError(message) {
+            errorMessageDiv.textContent = message;
+            errorMessageDiv.style.display = 'block';
+        }
+
+        function restartPeer() {
+            if (peer) {
+                peer.destroy();
+            }
+            peer = null;
+            mediaCall = null;
+            dataConn = null;
+            init();
+        }
+
         function onConnectionEstablished(peerId) {
+            // Se já estiver conectado, não faz nada
+            if (connectedIndicator.style.display === 'block') {
+                return;
+            }
+            
             statusDiv.style.display = 'none';
             qrcodeDiv.style.display = 'none';
             idDisplay.style.display = 'none';
@@ -137,18 +238,27 @@
         }
 
         function onConnectionClosed() {
-            // Volta a mostrar o QR Code para uma nova conexão
-            statusDiv.style.display = 'block';
-            qrcodeDiv.style.display = 'inline-block';
-            idDisplay.style.display = 'block';
-            connectedIndicator.style.display = 'none';
-            document.querySelector('h1').textContent = '📷 Câmera Remota';
-            document.querySelector('p').textContent = 'Escaneie este QR Code para conectar e controlar este dispositivo.';
+            // Só volta a mostrar o QR Code se ambas as conexões estiverem fechadas
+            if (!mediaCall && !dataConn) {
+                statusDiv.style.display = 'block';
+                qrcodeDiv.style.display = 'inline-block';
+                idDisplay.style.display = 'block';
+                connectedIndicator.style.display = 'none';
+                document.querySelector('h1').textContent = '📷 Câmera Remota';
+                document.querySelector('p').textContent = 'Escaneie este QR Code para conectar e controlar este dispositivo.';
+            }
         }
         
         async function toggleFlash() {
             if (!videoTrack) return;
             try {
+                // Verifica se o dispositivo suporta o torch
+                const capabilities = videoTrack.getCapabilities();
+                if (!capabilities.torch) {
+                    console.log('O dispositivo não suporta flash/torch.');
+                    return;
+                }
+                
                 isFlashOn = !isFlashOn;
                 await videoTrack.applyConstraints({
                     advanced: [{ torch: isFlashOn }]
@@ -156,6 +266,7 @@
                 console.log(isFlashOn ? 'Flash ligado.' : 'Flash desligado.');
             } catch (err) {
                 console.error('Erro ao controlar o flash:', err);
+                showError(`Erro ao controlar o flash: ${err.message}`);
             }
         }
 
