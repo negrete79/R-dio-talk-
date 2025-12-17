@@ -3,110 +3,59 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teste Unificado de Conexão</title>
-    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <title>Rastreador do Cavalo 🐴</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
     <style>
-        body { font-family: sans-serif; background: #333; color: #fff; text-align: center; padding: 20px; }
-        #container { max-width: 500px; margin: auto; background: #444; padding: 20px; border-radius: 10px; }
-        #id-display { background: #555; padding: 10px; border-radius: 5px; margin: 10px 0; word-break: break-all; }
-        #qrcode { margin: 20px auto; padding: 20px; background: white; display: inline-block; }
-        #status { margin: 20px 0; }
-        button { padding: 10px 20px; font-size: 16px; margin: 5px; cursor: pointer; }
-        #local-video, #remote-video { width: 200px; height: 150px; background: #222; margin: 10px; border: 1px solid #666; border-radius: 5px; }
+        body { margin: 0; padding: 0; }
+        #map { height: 100vh; width: 100%; }
     </style>
 </head>
 <body>
-    <div id="container">
-        <h1>📡 Teste de Conexão WebRTC</h1>
-        <p>Este teste verifica se seu navegador consegue capturar vídeo e se conectar a si mesmo.</p>
 
-        <div id="id-display">ID: Gerando...</div>
-        <div id="qrcode"></div>
+<div id="map"></div>
 
-        <div id="status">Clique em "Iniciar Câmera e Peer" para começar.</div>
-        <button id="start-btn">1. Iniciar Câmera e Peer</button>
-        <button id="test-btn" disabled>2. Testar Conexão (Chamar a si mesmo)</button>
-        
-        <hr>
-        <h3>Vídeos</h3>
-        <p>Local (sua câmera)</p>
-        <video id="local-video" autoplay muted playsinline></video>
-        <p>Remoto (o que foi recebido pela conexão)</p>
-        <video id="remote-video" autoplay playsinline></video>
-    </div>
+<!-- 1. Importar as bibliotecas -->
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
 
-    <script>
-        const startBtn = document.getElementById('start-btn');
-        const testBtn = document.getElementById('test-btn');
-        const statusDiv = document.getElementById('status');
-        const idDisplay = document.getElementById('id-display');
-        const qrcodeDiv = document.getElementById('qrcode');
-        const localVideo = document.getElementById('local-video');
-        const remoteVideo = document.getElementById('remote-video');
+<script>
+    // 2. URL do SEU SERVIDOR no Render
+    const SERVER_URL = "https://meu-servidor.onrender.com";
 
-        let peer = null;
-        let localStream = null;
+    // 3. Inicializar o mapa (vista inicial genérica)
+    const map = L.map('map').setView([-15.8267, -47.9218], 15); // Centro do Brasil
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    }).addTo(map);
 
-        startBtn.onclick = async () => {
-            startBtn.disabled = true;
-            statusDiv.textContent = 'Acessando a câmera...';
-            console.log('Tentando acessar a câmera...');
+    // 4. Criar o ícone do cavalo
+    const horseIcon = L.icon({
+        iconUrl: 'https://i.imgur.com/8Q6A1r5.png', // Ícone de um cavalo
+        iconSize: [40, 40],
+        iconAnchor: [20, 20] // Centraliza o ícone no ponto
+    });
+    
+    // 5. Adicionar o marcador do cavalo ao mapa
+    const horseMarker = L.marker([0, 0], { icon: horseIcon }).addTo(map);
 
-            try {
-                // Passo 1: Pega o vídeo da câmera
-                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-                localVideo.srcObject = localStream;
-                console.log('Câmera acessada com sucesso!');
-                statusDiv.textContent = 'Câmera OK. Iniciando servidor Peer...';
+    // 6. Conectar ao servidor WebSocket
+    const socket = io(SERVER_URL);
 
-                // Passo 2: Inicia o servidor Peer
-                peer = new Peer({ debug: 3 }); // debug: 3 mostra tudo no console
+    socket.on('connect', () => {
+        console.log('Conectado ao servidor!');
+    });
 
-                peer.on('open', (id) => {
-                    console.log('Meu Peer ID é: ' + id);
-                    idDisplay.textContent = `ID: ${id}`;
-                    new QRCode(qrcodeDiv, { text: id, width: 180, height: 180 });
-                    statusDiv.textContent = 'Pronto! Agora clique em "Testar Conexão".';
-                    testBtn.disabled = false;
-                });
+    // 7. Ouvir por novas localizações
+    socket.on('new-location', (data) => {
+        console.log('Nova localização recebida:', data);
+        const { lat, lon } = data;
 
-                // Passo 3: Prepara para receber a chamada
-                peer.on('call', (call) => {
-                    console.log('Recebendo chamada de:', call.peer);
-                    call.answer(localStream); // Responde com nosso vídeo
-                    call.on('stream', (remoteStream) => {
-                        console.log('Stream recebido com sucesso!');
-                        remoteVideo.srcObject = remoteStream;
-                        statusDiv.textContent = '✅ SUCESSO! A conexão P2P funcionou!';
-                    });
-                    call.on('error', (err) => console.error('Erro na chamada recebida:', err));
-                });
+        // Move o marcador e centraliza o mapa
+        horseMarker.setLatLng([lat, lon]);
+        map.setView([lat, lon], 16);
+    });
 
-                peer.on('error', (err) => {
-                    console.error('Erro no Peer:', err);
-                    statusDiv.textContent = `❌ Erro no Peer: ${err.type}`;
-                });
+</script>
 
-            } catch (err) {
-                console.error('Erro ao acessar a câmera:', err);
-                statusDiv.textContent = `❌ Erro na câmera: ${err.message}`;
-                startBtn.disabled = false;
-            }
-        };
-
-        testBtn.onclick = () => {
-            if (!peer || !peer.id) {
-                alert('Peer não está pronto ainda.');
-                return;
-            }
-            console.log('Iniciando teste de chamada para mim mesmo...');
-            statusDiv.textContent = 'Chamando a si mesmo...';
-            
-            // Passo 4: Faz a chamada para si mesmo
-            const outgoingCall = peer.call(peer.id, localStream);
-            outgoingCall.on('error', (err) => console.error('Erro na chamada de saída:', err));
-        };
-    </script>
 </body>
 </html>
