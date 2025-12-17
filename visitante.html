@@ -55,7 +55,7 @@
         <button id="start-scan-btn">Iniciar Scanner</button>
     </div>
 
-    <!-- TELA 2: Vídeo Recebido (inicialmente escondida) -->
+    <!-- TELA 2: Vídeo Recebido -->
     <div id="call-view" style="display: none;">
         <video id="remote-video" autoplay playsinline></video>
         <div class="controls">
@@ -82,16 +82,14 @@
         let barcodeDetector = null;
         let scanStream = null;
 
-        // IMPORTANTE: WebRTC (usado pelo PeerJS) requer HTTPS para funcionar.
-        // Teste em um servidor local (como Live Server no VSCode) ou em um servidor HTTPS.
+        // WebRTC (PeerJS) precisa de HTTPS para funcionar.
         if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
             statusDiv.textContent = '❌ Erro: Esta aplicação requer uma conexão segura (HTTPS).';
             startScanBtn.disabled = true;
         }
 
-        // Verifica suporte ao BarcodeDetector
+        // Verifica se o navegador suporta o escaneamento de QR Code
         if (!('BarcodeDetector' in window)) {
-            console.warn('BarcodeDetector não é suportado neste navegador.');
             statusDiv.textContent = '❌ Navegador não suporta escaneamento. Use um navegador moderno.';
             startScanBtn.disabled = true;
         } else {
@@ -109,9 +107,7 @@
         function showError(message) {
             errorMessageDiv.textContent = message;
             errorMessageDiv.style.display = 'block';
-            setTimeout(() => {
-                errorMessageDiv.style.display = 'none';
-            }, 5000);
+            setTimeout(() => { errorMessageDiv.style.display = 'none'; }, 5000);
         }
 
         async function startScanning() {
@@ -131,8 +127,7 @@
 
         function stopScanning() {
             if (scanStream) {
-                const tracks = scanStream.getTracks();
-                tracks.forEach(track => track.stop());
+                scanStream.getTracks().forEach(track => track.stop());
                 qrVideo.srcObject = null;
                 scanStream = null;
             }
@@ -159,69 +154,41 @@
 
         function connect(remoteId) {
             statusDiv.textContent = `Conectando com ${remoteId}...`;
-            console.log(`Iniciando conexão com o ID: ${remoteId}`);
-            
-            // Destroi qualquer peer existente antes de criar um novo
-            if (peer) {
-                peer.destroy();
-            }
+            if (peer) peer.destroy(); // Limpa conexões anteriores
 
             peer = new Peer({
-                config: {
-                    iceServers: [
-                        { urls: 'stun:stun.l.google.com:19302' },
-                        { urls: 'stun:stun1.l.google.com:19302' }
-                    ]
-                }
+                config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
             });
             
-            peer.on('open', (id) => {
-                console.log(`PeerJS aberto no espectador com ID: ${id}`);
-                
-                // 1. Inicia a conexão de dados (para comandos)
-                dataConn = peer.connect(remoteId, { reliable: true });
-                
-                dataConn.on('open', () => {
-                    console.log('Conexão de dados aberta.');
-                    flashBtn.disabled = false;
-                });
-                
-                dataConn.on('error', (err) => {
-                    console.error('Erro na conexão de dados:', err);
-                    showError(`Erro de controle: ${err.message}`);
-                });
+            peer.on('open', () => {
+                // 1. Conexão de dados para comandos (flash)
+                dataConn = peer.connect(remoteId);
+                dataConn.on('open', () => { flashBtn.disabled = false; });
+                dataConn.on('error', (err) => console.error('Erro de dados:', err));
 
-                // 2. Inicia a chamada de mídia (para receber vídeo)
-                console.log('Iniciando chamada de mídia...');
+                // 2. Chamada de mídia para receber vídeo/áudio em tempo real
                 mediaCall = peer.call(remoteId);
                 
                 mediaCall.on('stream', (remoteStream) => {
-                    console.log('Stream de vídeo recebido!');
-                    // Verifica se o stream possui tracks de vídeo ou áudio
+                    console.log('Stream de vídeo/áudio recebido!');
+                    // Verifica se o stream não está vazio
                     if (remoteStream.getTracks().length > 0) {
                         remoteVideo.srcObject = remoteStream;
                         switchToCallView();
                     } else {
-                        console.error('Stream recebido, mas está vazio (sem tracks).');
                         showError('Conectado, mas não foi possível receber o vídeo/áudio.');
                     }
                 });
                 
-                mediaCall.on('close', () => {
-                    console.log('Chamada de mídia foi fechada.');
-                    disconnect();
-                });
-
+                mediaCall.on('close', disconnect);
                 mediaCall.on('error', (err) => {
-                    console.error('Erro na chamada de mídia:', err);
-                    statusDiv.textContent = `❌ Erro de vídeo: ${err.message}`;
+                    console.error('Erro na chamada de vídeo:', err);
                     showError(`Falha no vídeo: ${err.message}`);
                 });
             });
 
             peer.on('error', (err) => {
-                console.error('Erro geral no PeerJS do espectador:', err);
-                statusDiv.textContent = `❌ Erro de conexão: ${err.type}`;
+                console.error('Erro na conexão:', err);
                 showError(`Falha na conexão: ${err.message}`);
             });
         }
@@ -229,11 +196,10 @@
         function switchToCallView() {
             scanView.style.display = 'none';
             callView.style.display = 'flex';
-            statusDiv.textContent = '✅ Conectado! Controle a câmera remota.';
+            statusDiv.textContent = '✅ Conectado!';
         }
         
         function disconnect() {
-            console.log('Desconectando...');
             if (mediaCall) mediaCall.close();
             if (dataConn) dataConn.close();
             if (peer) peer.destroy();

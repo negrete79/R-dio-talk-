@@ -57,7 +57,7 @@
         <button id="retry-button">Tentar Novamente</button>
         
         <div class="connected-indicator" id="connected-indicator">
-            <p>✅ Conectado e Transmitindo</p>
+            <p>✅ Conectado e Transmitindo em Tempo Real</p>
         </div>
     </div>
 
@@ -73,11 +73,10 @@
         let localStream = null;
         let videoTrack = null;
         let isFlashOn = false;
-        let currentPeerId = null;
         let mediaCall = null;
         let dataConn = null;
 
-        // IMPORTANTE: WebRTC (usado pelo PeerJS) requer HTTPS para funcionar.
+        // WebRTC (PeerJS) precisa de HTTPS para funcionar.
         if (location.protocol !== 'https:' && location.hostname !== 'localhost') {
             statusDiv.textContent = '❌ Erro: Esta aplicação requer uma conexão segura (HTTPS).';
         }
@@ -85,30 +84,29 @@
         async function init() {
             statusDiv.textContent = 'Acessando câmera traseira...';
             try {
-                // 1. Pega o stream de áudio e vídeo da câmera traseira
+                // CAPTURA DE VÍDEO OTIMIZADA PARA TEMPO REAL
+                // Usamos uma resolução mais baixa (640x480) e uma taxa de quadros padrão (24-30 fps)
+                // para garantir que a transmissão seja fluida e com baixo atraso, mesmo em redes mais lentas.
                 localStream = await navigator.mediaDevices.getUserMedia({ 
-                    video: { facingMode: 'environment' }, 
+                    video: { 
+                        facingMode: 'environment', 
+                        width: { ideal: 640 }, 
+                        height: { ideal: 480 },
+                        frameRate: { ideal: 24, max: 30 }
+                    }, 
                     audio: true 
                 });
                 videoTrack = localStream.getVideoTracks()[0];
-                console.log('Câmera traseira iniciada. Tracks:', localStream.getTracks().length);
+                console.log('Câmera iniciada em modo de baixa latência.');
 
-                // 2. Inicia o Peer com configuração explícita de servidores STUN
                 peer = new Peer({
-                    config: {
-                        iceServers: [
-                            { urls: 'stun:stun.l.google.com:19302' },
-                            { urls: 'stun:stun1.l.google.com:19302' }
-                        ]
-                    }
+                    config: { iceServers: [{ urls: 'stun:stun.l.google.com:19302' }] }
                 });
 
                 peer.on('open', (id) => {
                     console.log('Meu ID de peer é: ' + id);
                     idDisplay.textContent = `ID: ${id}`;
-                    currentPeerId = id;
                     
-                    // Gera o QR Code
                     qrcodeDiv.innerHTML = '';
                     new QRCode(qrcodeDiv, {
                         text: id,
@@ -122,85 +120,52 @@
                     statusDiv.textContent = 'Pronto para conexão.';
                 });
 
-                // --- ESCUTA POR CHAMADAS DE MÍDIA ---
+                // ESCUTA POR CHAMADAS DE MÍDIA (para enviar o vídeo/áudio)
                 peer.on('call', (call) => {
                     console.log('Recebendo chamada de mídia de:', call.peer);
+                    if (mediaCall) return; // Ignora se já estiver em uma chamada
                     
-                    if (mediaCall && mediaCall.open) {
-                        console.log('Já existe uma chamada de mídia ativa. Ignorando nova chamada.');
-                        return;
-                    }
-                    
-                    // Verifica se o stream local está disponível antes de responder
-                    if (localStream && localStream.active) {
-                        console.log('Respondendo à chamada com o stream local.');
-                        mediaCall = call;
-                        call.answer(localStream);
-                        onConnectionEstablished(call.peer);
-                    } else {
-                        console.error('Tentativa de responder à chamada, mas o stream local não está ativo.');
-                        call.close(); // Fecha a chamada se não temos o que enviar
-                    }
+                    mediaCall = call;
+                    call.answer(localStream); // Envia nosso stream para quem ligou
+                    onConnectionEstablished(call.peer);
                     
                     call.on('close', () => {
-                        console.log('Chamada de mídia encerrada.');
-                        if (mediaCall === call) {
-                            mediaCall = null;
-                            onConnectionClosed();
-                        }
+                        mediaCall = null;
+                        onConnectionClosed();
                     });
-                    
                     call.on('error', (err) => {
                         console.error('Erro na chamada de mídia:', err);
-                        showError(`Erro na chamada: ${err.message}`);
-                        if (mediaCall === call) {
-                            mediaCall = null;
-                            onConnectionClosed();
-                        }
+                        mediaCall = null;
+                        onConnectionClosed();
                     });
                 });
 
-                // --- ESCUTA POR CONEXÕES DE DADOS (COMANDOS) ---
+                // ESCUTA POR CONEXÕES DE DADOS (para receber comandos como o flash)
                 peer.on('connection', (conn) => {
                     console.log('Recebendo conexão de dados de:', conn.peer);
-                    
-                    if (dataConn && dataConn.open) {
-                        console.log('Já existe uma conexão de dados ativa. Ignorando nova conexão.');
-                        return;
-                    }
+                    if (dataConn) return; // Ignora se já houver uma conexão
                     
                     dataConn = conn;
                     onConnectionEstablished(conn.peer);
 
                     conn.on('data', (data) => {
-                        console.log('Comando recebido:', data);
-                        if (data === 'toggleFlash') {
-                            toggleFlash();
-                        }
+                        if (data === 'toggleFlash') toggleFlash();
                     });
 
                     conn.on('close', () => {
-                        console.log('Conexão de dados encerrada.');
-                        if (dataConn === conn) {
-                            dataConn = null;
-                            onConnectionClosed();
-                        }
+                        dataConn = null;
+                        onConnectionClosed();
                     });
-                    
                     conn.on('error', (err) => {
                         console.error('Erro na conexão de dados:', err);
-                        showError(`Erro na conexão: ${err.message}`);
-                        if (dataConn === conn) {
-                            dataConn = null;
-                            onConnectionClosed();
-                        }
+                        dataConn = null;
+                        onConnectionClosed();
                     });
                 });
 
                 peer.on('error', (err) => {
                     console.error('Erro no Peer:', err);
-                    statusDiv.textContent = `❌ Erro: ${err.type}`;
-                    showError(`Erro: ${err.type} - ${err.message}`);
+                    showError(`Erro: ${err.type}`);
                     retryButton.style.display = 'block';
                 });
 
@@ -211,7 +176,7 @@
                 statusDiv.textContent = `❌ Erro na câmera: ${err.message}`;
                 showError(`Erro na câmera: ${err.message}`);
                 retryButton.style.display = 'block';
-                retryButton.onclick = init; // Tenta reiniciar apenas a câmera
+                retryButton.onclick = init;
             }
         }
 
@@ -231,10 +196,7 @@
         }
 
         function onConnectionEstablished(peerId) {
-            // Se já estiver conectado, não faz nada
-            if (connectedIndicator.style.display === 'block') {
-                return;
-            }
+            if (connectedIndicator.style.display === 'block') return;
             
             statusDiv.style.display = 'none';
             qrcodeDiv.style.display = 'none';
@@ -245,7 +207,6 @@
         }
 
         function onConnectionClosed() {
-            // Só volta a mostrar o QR Code se ambas as conexões estiverem fechadas
             if (!mediaCall && !dataConn) {
                 statusDiv.style.display = 'block';
                 qrcodeDiv.style.display = 'inline-block';
@@ -260,19 +221,12 @@
             if (!videoTrack) return;
             try {
                 const capabilities = videoTrack.getCapabilities();
-                if (!capabilities.torch) {
-                    console.log('O dispositivo não suporta flash/torch.');
-                    return;
-                }
+                if (!capabilities.torch) return;
                 
                 isFlashOn = !isFlashOn;
-                await videoTrack.applyConstraints({
-                    advanced: [{ torch: isFlashOn }]
-                });
-                console.log(isFlashOn ? 'Flash ligado.' : 'Flash desligado.');
+                await videoTrack.applyConstraints({ advanced: [{ torch: isFlashOn }] });
             } catch (err) {
                 console.error('Erro ao controlar o flash:', err);
-                showError(`Erro ao controlar o flash: ${err.message}`);
             }
         }
 
