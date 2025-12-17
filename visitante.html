@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Espectador - Controle Remoto</title>
+    <title>Espectador - Controle Remoto (Depuração)</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #121212; color: #ffffff; text-align: center; margin: 0; padding: 0; }
@@ -16,7 +16,7 @@
         #remote-video { 
             width: 100%; 
             height: 100%; 
-            object-fit: contain; /* Ajusta o vídeo para caber na tela sem cortar */
+            object-fit: contain;
             background: #000;
         }
         .controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; }
@@ -33,6 +33,17 @@
         button:disabled { background: #555; cursor: not-allowed; }
         #flash-btn { background: #ff9800; }
         #disconnect-btn { background: #f44336; }
+        #manual-connect-btn { background: #2196F3; }
+        input { 
+            padding: 10px; 
+            font-size: 16px; 
+            width: 80%; 
+            margin-bottom: 10px; 
+            background: #333; 
+            border: 1px solid #555; 
+            color: white; 
+            border-radius: 5px; 
+        }
     </style>
 </head>
 <body>
@@ -40,15 +51,21 @@
     <!-- TELA 1: Escaneamento do QR Code -->
     <div id="scan-view">
         <h1>📷 Conectar à Câmera Remota</h1>
-        <p>Aponte a câmera para o QR Code no outro dispositivo.</p>
+        <p>Opção 1: Aponte a câmera para o QR Code.</p>
         <video id="qr-video" autoplay playsinline></video>
         <div id="status">Clique em "Iniciar Scanner" para começar.</div>
         <button id="start-scan-btn">Iniciar Scanner</button>
+
+        <hr style="width:80%; margin: 20px 0; border: 1px solid #444;">
+        
+        <p>Opção 2: Conexão Manual (para teste).</p>
+        <input type="text" id="manual-id-input" placeholder="test-xxxxxxxx">
+        <br>
+        <button id="manual-connect-btn">Conectar Manualmente</button>
     </div>
 
     <!-- TELA 2: Vídeo Recebido (inicialmente escondida) -->
     <div id="call-view" style="display: none;">
-        <!-- Vídeo da câmera remota será exibido aqui -->
         <video id="remote-video" autoplay playsinline></video>
         <div class="controls">
             <button id="flash-btn" disabled>🔦 Flash</button>
@@ -64,6 +81,8 @@
         const remoteVideo = document.getElementById('remote-video');
         const statusDiv = document.getElementById('status');
         const startScanBtn = document.getElementById('start-scan-btn');
+        const manualIdInput = document.getElementById('manual-id-input');
+        const manualConnectBtn = document.getElementById('manual-connect-btn');
         const flashBtn = document.getElementById('flash-btn');
         const disconnectBtn = document.getElementById('disconnect-btn');
 
@@ -71,39 +90,65 @@
         let mediaCall = null;
         let dataConn = null;
         let barcodeDetector = null;
+        let scanStream = null; // Para parar o stream do scanner
 
+        // Verifica suporte ao BarcodeDetector
         if (!('BarcodeDetector' in window)) {
-            statusDiv.textContent = '❌ Navegador não suporta escaneamento de QR Code. Use o Chrome ou Firefox.';
+            console.warn('BarcodeDetector não é suportado neste navegador.');
+            statusDiv.textContent = '❌ Navegador não suporta escaneamento automático. Use a conexão manual.';
             startScanBtn.disabled = true;
         } else {
             barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
         }
 
         startScanBtn.onclick = startScanning;
+        manualConnectBtn.onclick = () => {
+            const remoteId = manualIdInput.value.trim();
+            if (remoteId) {
+                stopScanning(); // Para o scanner se estiver ativo
+                connect(remoteId);
+            } else {
+                alert('Por favor, digite o ID.');
+            }
+        };
         flashBtn.onclick = () => { if(dataConn && dataConn.open) dataConn.send('toggleFlash'); };
         disconnectBtn.onclick = disconnect;
 
         async function startScanning() {
             startScanBtn.disabled = true;
             statusDiv.textContent = 'Acessando a câmera para o scanner...';
+            console.log('Tentando acessar a câmera para o scanner...');
             try {
-                const stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
-                qrVideo.srcObject = stream;
+                scanStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' } });
+                qrVideo.srcObject = scanStream;
                 statusDiv.textContent = 'Procurando por um QR Code...';
+                console.log('Câmera do scanner ativa. Iniciando detecção...');
                 detectQRCode();
             } catch (err) {
                 statusDiv.textContent = `❌ Erro ao acessar a câmera: ${err.message}`;
-                console.error(err);
+                console.error('Erro ao acessar a câmera do scanner:', err);
                 startScanBtn.disabled = false;
             }
         }
 
+        function stopScanning() {
+            if (scanStream) {
+                console.log('Parando stream de escaneamento.');
+                const tracks = scanStream.getTracks();
+                tracks.forEach(track => track.stop());
+                qrVideo.srcObject = null;
+                scanStream = null;
+            }
+        }
+
         async function detectQRCode() {
+            if (!scanStream) return; // Para se o scanner foi parado
             try {
                 const barcodes = await barcodeDetector.detect(qrVideo);
                 if (barcodes.length > 0) {
                     const scannedId = barcodes[0].rawValue;
                     console.log('QR Code detectado:', scannedId);
+                    statusDiv.textContent = `QR Code detectado: ${scannedId}. Conectando...`;
                     stopScanning();
                     connect(scannedId);
                 } else {
@@ -115,37 +160,47 @@
             }
         }
 
-        function stopScanning() {
-            const tracks = qrVideo.srcObject.getTracks();
-            tracks.forEach(track => track.stop());
-            qrVideo.srcObject = null;
-        }
-
         function connect(remoteId) {
             statusDiv.textContent = `Conectando com ${remoteId}...`;
+            console.log(`Iniciando conexão com o ID: ${remoteId}`);
             peer = new Peer();
             
-            peer.on('open', () => {
+            peer.on('open', (id) => {
+                console.log(`PeerJS aberto no espectador com ID: ${id}`);
                 // --- 1. INICIA A CHAMADA DE MÍDIA (RECEBER VÍDEO) ---
+                console.log('Iniciando chamada de mídia...');
                 mediaCall = peer.call(remoteId);
+                
                 mediaCall.on('stream', (remoteStream) => {
-                    console.log('Stream de vídeo recebido.');
+                    console.log('Stream de vídeo recebido com sucesso!');
                     remoteVideo.srcObject = remoteStream;
                     switchToCallView();
                 });
-                mediaCall.on('close', disconnect);
+                
+                mediaCall.on('close', () => {
+                    console.log('Chamada de mídia foi fechada.');
+                    disconnect();
+                });
+
                 mediaCall.on('error', (err) => {
                     console.error('Erro na chamada de mídia:', err);
                     statusDiv.textContent = `❌ Erro de vídeo: ${err.message}`;
                 });
 
                 // --- 2. INICIA A CONEXÃO DE DADOS (ENVIAR COMANDOS) ---
+                console.log('Iniciando conexão de dados...');
                 dataConn = peer.connect(remoteId);
+                
                 dataConn.on('open', () => {
                     console.log('Conexão de dados aberta. Controle do flash habilitado.');
                     flashBtn.disabled = false;
                 });
-                dataConn.on('close', disconnect);
+                
+                dataConn.on('close', () => {
+                    console.log('Conexão de dados foi fechada.');
+                    disconnect();
+                });
+
                 dataConn.on('error', (err) => {
                     console.error('Erro na conexão de dados:', err);
                     flashBtn.disabled = true;
@@ -153,8 +208,8 @@
             });
 
             peer.on('error', (err) => {
-                statusDiv.textContent = `❌ Erro de conexão: ${err.message}`;
-                console.error(err);
+                console.error('Erro geral no PeerJS do espectador:', err);
+                statusDiv.textContent = `❌ Erro de conexão: ${err.type} - ${err.message}`;
             });
         }
         
@@ -165,6 +220,7 @@
         }
         
         function disconnect() {
+            console.log('Iniciando processo de desconexão...');
             if (mediaCall) mediaCall.close();
             if (dataConn) dataConn.close();
             if (peer) peer.destroy();
@@ -182,7 +238,7 @@
 
             callView.style.display = 'none';
             scanView.style.display = 'flex';
-            statusDiv.textContent = 'Desconectado. Clique em "Iniciar Scanner" para uma nova conexão.';
+            statusDiv.textContent = 'Desconectado. Clique em "Iniciar Scanner" ou use a conexão manual.';
         }
     </script>
 </body>
