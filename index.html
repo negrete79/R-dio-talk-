@@ -3,114 +3,155 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Câmera com QR Code</title>
+    <title>Câmera de Vigilância (Seletor)</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #1a1a1a; color: #f0f0f0; text-align: center; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; box-sizing: border-box; }
         h1 { color: #4fc3f7; margin-bottom: 10px; }
-        .subtitle { color: #aaa; margin-bottom: 20px; }
-        #video { width: 100%; max-width: 400px; border-radius: 12px; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
-        .qr-container { margin: 20px 0; padding: 20px; background: #fff; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        #qrcode { padding: 10px; background: white; }
-        #status { margin-top: 20px; font-size: 18px; color: #4fc3f7; font-weight: bold; }
-        .instructions { background: #333; padding: 15px; border-radius: 8px; margin-top: 20px; max-width: 400px; }
-        .wake-lock-btn { background: #ff9800; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 15px; }
-        .wake-lock-btn:disabled { background: #555; cursor: not-allowed; }
-        .warning { background: #d32f2f; color: white; padding: 10px; border-radius: 8px; margin-top: 15px; }
+        #video { width: 100%; max-width: 500px; border-radius: 12px; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .info-box { background: #1e1e1e; padding: 20px; border-radius: 8px; margin-top: 20px; max-width: 500px; width: 100%; }
+        #camera-id { font-size: 18px; font-weight: bold; color: #03dac6; word-wrap: break-word; margin-bottom: 15px; }
+        #status { margin-top: 15px; font-size: 16px; color: #e0e0e0; }
+        .qr-container { margin: 20px 0; padding: 20px; background: #2a2a2a; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        #qrcode { padding: 10px; background: white; border-radius: 8px; }
+        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #2c2c2c; color: #e0e0e0; font-size: 16px; margin-bottom: 15px; }
+        button { background: #bb86fc; color: #121212; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 5px; transition: background-color 0.3s; width: 100%; }
+        button:hover { background: #a370f0; }
+        button:disabled { background: #444; cursor: not-allowed; }
+        .loading { color: #aaa; }
     </style>
 </head>
 <body>
     <h1>📹 Câmera de Vigilância</h1>
-    <p class="subtitle">Escaneie este QR Code com o app do espectador</p>
-
     <video id="video" autoplay muted playsinline></video>
     
-    <div class="qr-container">
-        <div id="qrcode"></div>
+    <div class="info-box">
+        <div id="camera-id">Gerando ID...</div>
+        <div id="status">Inicializando...</div>
+
+        <div id="camera-selector-container" style="display: none;">
+            <label for="camera-select" style="display: block; text-align: left; margin-bottom: 5px; font-weight: bold;">Escolha a Câmera:</label>
+            <select id="camera-select"></select>
+            <button id="apply-camera-btn">Usar Esta Câmera</button>
+        </div>
     </div>
 
-    <div id="status">Gerando QR Code...</div>
-    <button id="wakeLockBtn" class="wake-lock-btn">Manter Tela Ativa</button>
-    
-    <div class="instructions">
-        <strong>Instruções:</strong><br>
-        1. Permita o acesso à câmera.<br>
-        2. Clique em "Manter Tela Ativa".<br>
-        3. <strong>NÃO feche esta página nem apague a tela.</strong><br>
-        4. Para melhorar, vá em Config. > Bateria > e desative a "Otimização de Bateria" para este navegador.
-    </div>
-    <div class="warning">
-        <strong>Atenção:</strong> Este é um site. Para funcionar 24/7, ele precisa ficar aberto na tela.
+    <div class="qr-container" id="qr-container" style="display: none;">
+        <p style="color: #ccc; margin-top: 0;">QR Code ou ID da Câmera:</p>
+        <div id="qrcode"></div>
     </div>
 
     <script>
         const video = document.getElementById('video');
+        const cameraIdDiv = document.getElementById('camera-id');
         const statusDiv = document.getElementById('status');
-        const qrcodeDiv = document.getElementById('qrcode');
-        const wakeLockBtn = document.getElementById('wakeLockBtn');
+        const cameraSelectorContainer = document.getElementById('camera-selector-container');
+        const cameraSelect = document.getElementById('camera-select');
+        const applyCameraBtn = document.getElementById('apply-camera-btn');
+        const qrContainer = document.getElementById('qr-container');
         
         let localStream;
         let peer;
-        let wakeLock = null;
+        let allCameras = [];
         const cameraId = 'cam-' + Math.random().toString(36).substr(2, 9);
 
-        // Função para manter a tela ativa
-        async function requestWakeLock() {
+        // Função para descobrir câmeras
+        async function discoverCameras() {
+            statusDiv.innerHTML = '<span class="loading">Pedindo permissão para descobrir câmeras...</span>';
+            // 1. Pedir uma permissão genérica para "desbloquear" os labels
             try {
-                wakeLock = await navigator.wakeLock.request('screen');
-                statusDiv.textContent = 'Tela ativa! Pronto para conexão.';
-                wakeLockBtn.textContent = 'Tela Ativa (OK)';
-                wakeLockBtn.disabled = true;
-
-                wakeLock.addEventListener('release', () => {
-                    statusDiv.textContent = 'A tela foi desbloqueada. O app pode parar.';
-                    wakeLockBtn.textContent = 'Manter Tela Ativa';
-                    wakeLockBtn.disabled = false;
-                });
-
+                const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
+                tempStream.getTracks().forEach(track => track.stop()); // Libera a câmera imediatamente
             } catch (err) {
-                console.error(`Falha ao ativar Wake Lock: ${err.name}, ${err.message}`);
-                statusDiv.textContent = `Não foi possível manter a tela ativa: ${err.message}`;
+                console.error("Erro na permissão inicial:", err);
+                statusDiv.textContent = 'Erro: Permissão de câmera negada.';
+                return;
             }
+
+            // 2. Agora sim, lista os dispositivos com os labels corretos
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            allCameras = devices.filter(device => device.kind === 'videoinput');
+            
+            if (allCameras.length === 0) {
+                statusDiv.textContent = 'Nenhuma câmera encontrada neste dispositivo.';
+                return;
+            }
+
+            // 3. Preenche o seletor
+            cameraSelect.innerHTML = '';
+            allCameras.forEach((camera, index) => {
+                const option = document.createElement('option');
+                option.value = camera.deviceId;
+                // Tenta dar um nome amigável
+                const label = camera.label || `Câmera ${index + 1}`;
+                option.text = label.includes('back') || label.includes('traseira') ? `📷 ${label} (Provável Traseira)` : `🤳 ${label}`;
+                cameraSelect.appendChild(option);
+            });
+
+            statusDiv.textContent = 'Câmeras encontradas! Escolha uma abaixo.';
+            cameraSelectorContainer.style.display = 'block';
         }
 
-        wakeLockBtn.addEventListener('click', requestWakeLock);
+        // Função para iniciar a câmera selecionada
+        async function startSelectedCamera() {
+            const selectedDeviceId = cameraSelect.value;
+            if (!selectedDeviceId) return;
 
-        // O resto do código é o mesmo...
-        async function init() {
+            statusDiv.innerHTML = '<span class="loading">Iniciando câmera selecionada...</span>';
+            
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+
             try {
-                localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                const constraints = { 
+                    video: { deviceId: { exact: selectedDeviceId } }, 
+                    audio: false 
+                };
+                localStream = await navigator.mediaDevices.getUserMedia(constraints);
                 video.srcObject = localStream;
-
-                peer = new Peer(cameraId);
                 
-                peer.on('open', (id) => {
-                    new QRCode(qrcodeDiv, { text: id, width: 200, height: 200 });
-                    statusDiv.textContent = 'Pronto! Clique em "Manter Tela Ativa".';
-                });
-
-                peer.on('call', (call) => {
-                    statusDiv.textContent = 'Espectador conectado!';
-                    call.answer(localStream);
-                });
-
-                peer.on('disconnected', () => {
-                    statusDiv.textContent = 'Espectador desconectado. Aguardando nova conexão...';
-                });
-
-                peer.on('error', (err) => {
-                    console.error(err);
-                    statusDiv.textContent = `Erro: ${err.type}`;
-                });
+                statusDiv.textContent = 'Câmera ativa! Iniciando serviço de conexão...';
+                initPeerConnection();
 
             } catch (err) {
-                console.error("Erro ao inicializar:", err);
-                statusDiv.textContent = 'Erro: Verifique as permissões da câmera.';
+                console.error("Erro ao iniciar câmera:", err);
+                statusDiv.textContent = `Erro ao iniciar câmera: ${err.message}`;
             }
         }
 
-        init();
+        // Função para iniciar a conexão Peer
+        function initPeerConnection() {
+            peer = new Peer(cameraId);
+            
+            peer.on('open', (id) => {
+                cameraIdDiv.innerHTML = `<strong>ID da Câmera:</strong><br>${id}`;
+                statusDiv.textContent = 'Pronto para conexão! Escaneie o QR Code ou use o ID.';
+                qrContainer.style.display = 'block';
+                new QRCode(document.getElementById('qrcode'), { text: id, width: 200, height: 200 });
+            });
+
+            peer.on('call', (call) => {
+                statusDiv.textContent = 'Espectador conectado!';
+                call.answer(localStream);
+            });
+
+            peer.on('disconnected', () => {
+                statusDiv.textContent = 'Espectador desconectado. Aguardando nova conexão...';
+            });
+
+            peer.on('error', (err) => {
+                console.error(err);
+                statusDiv.textContent = `Erro de conexão: ${err.type}`;
+            });
+        }
+
+        // Event Listeners
+        applyCameraBtn.onclick = startSelectedCamera;
+
+        // Inicia tudo
+        discoverCameras();
     </script>
 </body>
 </html>
