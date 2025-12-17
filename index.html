@@ -3,155 +3,62 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Câmera de Vigilância (Seletor)</title>
+    <title>Teste de Conexão - Espectador</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #1a1a1a; color: #f0f0f0; text-align: center; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; box-sizing: border-box; }
-        h1 { color: #4fc3f7; margin-bottom: 10px; }
-        #video { width: 100%; max-width: 500px; border-radius: 12px; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .info-box { background: #1e1e1e; padding: 20px; border-radius: 8px; margin-top: 20px; max-width: 500px; width: 100%; }
-        #camera-id { font-size: 18px; font-weight: bold; color: #03dac6; word-wrap: break-word; margin-bottom: 15px; }
-        #status { margin-top: 15px; font-size: 16px; color: #e0e0e0; }
-        .qr-container { margin: 20px 0; padding: 20px; background: #2a2a2a; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
-        #qrcode { padding: 10px; background: white; border-radius: 8px; }
-        select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #2c2c2c; color: #e0e0e0; font-size: 16px; margin-bottom: 15px; }
-        button { background: #bb86fc; color: #121212; border: none; padding: 12px 24px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; margin-top: 5px; transition: background-color 0.3s; width: 100%; }
-        button:hover { background: #a370f0; }
-        button:disabled { background: #444; cursor: not-allowed; }
-        .loading { color: #aaa; }
+        body { font-family: Arial, sans-serif; background: #333; color: #fff; text-align: center; padding: 20px; }
+        input { padding: 10px; font-size: 16px; width: 80%; margin-bottom: 10px; }
+        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
+        #status { font-size: 20px; margin-top: 20px; }
     </style>
 </head>
 <body>
-    <h1>📹 Câmera de Vigilância</h1>
-    <video id="video" autoplay muted playsinline></video>
-    
-    <div class="info-box">
-        <div id="camera-id">Gerando ID...</div>
-        <div id="status">Inicializando...</div>
-
-        <div id="camera-selector-container" style="display: none;">
-            <label for="camera-select" style="display: block; text-align: left; margin-bottom: 5px; font-weight: bold;">Escolha a Câmera:</label>
-            <select id="camera-select"></select>
-            <button id="apply-camera-btn">Usar Esta Câmera</button>
-        </div>
-    </div>
-
-    <div class="qr-container" id="qr-container" style="display: none;">
-        <p style="color: #ccc; margin-top: 0;">QR Code ou ID da Câmera:</p>
-        <div id="qrcode"></div>
-    </div>
+    <h1>Teste de Conexão (Espectador)</h1>
+    <p>Digite o ID que apareceu no outro dispositivo:</p>
+    <input type="text" id="id-input" placeholder="test-xxxxxxxx">
+    <br>
+    <button id="connect-btn">Conectar</button>
+    <div id="status">Aguardando...</div>
 
     <script>
-        const video = document.getElementById('video');
-        const cameraIdDiv = document.getElementById('camera-id');
+        const idInput = document.getElementById('id-input');
+        const connectBtn = document.getElementById('connect-btn');
         const statusDiv = document.getElementById('status');
-        const cameraSelectorContainer = document.getElementById('camera-selector-container');
-        const cameraSelect = document.getElementById('camera-select');
-        const applyCameraBtn = document.getElementById('apply-camera-btn');
-        const qrContainer = document.getElementById('qr-container');
         
-        let localStream;
-        let peer;
-        let allCameras = [];
-        const cameraId = 'cam-' + Math.random().toString(36).substr(2, 9);
+        const peer = new Peer();
 
-        // Função para descobrir câmeras
-        async function discoverCameras() {
-            statusDiv.innerHTML = '<span class="loading">Pedindo permissão para descobrir câmeras...</span>';
-            // 1. Pedir uma permissão genérica para "desbloquear" os labels
-            try {
-                const tempStream = await navigator.mediaDevices.getUserMedia({ video: true });
-                tempStream.getTracks().forEach(track => track.stop()); // Libera a câmera imediatamente
-            } catch (err) {
-                console.error("Erro na permissão inicial:", err);
-                statusDiv.textContent = 'Erro: Permissão de câmera negada.';
+        peer.on('open', () => {
+            statusDiv.textContent = 'Pronto para conectar. Digite o ID e clique em Conectar.';
+            console.log('Espectador inicializado.');
+        });
+
+        peer.on('error', (err) => {
+            statusDiv.textContent = `❌ ERRO: ${err.type} - ${err.message}`;
+            console.error('Erro no Peer:', err);
+        });
+
+        connectBtn.onclick = () => {
+            const remoteId = idInput.value.trim();
+            if (!remoteId) {
+                alert('Por favor, digite um ID.');
                 return;
             }
-
-            // 2. Agora sim, lista os dispositivos com os labels corretos
-            const devices = await navigator.mediaDevices.enumerateDevices();
-            allCameras = devices.filter(device => device.kind === 'videoinput');
+            statusDiv.textContent = `Tentando conectar com ${remoteId}...`;
             
-            if (allCameras.length === 0) {
-                statusDiv.textContent = 'Nenhuma câmera encontrada neste dispositivo.';
-                return;
-            }
+            const conn = peer.connect(remoteId);
 
-            // 3. Preenche o seletor
-            cameraSelect.innerHTML = '';
-            allCameras.forEach((camera, index) => {
-                const option = document.createElement('option');
-                option.value = camera.deviceId;
-                // Tenta dar um nome amigável
-                const label = camera.label || `Câmera ${index + 1}`;
-                option.text = label.includes('back') || label.includes('traseira') ? `📷 ${label} (Provável Traseira)` : `🤳 ${label}`;
-                cameraSelect.appendChild(option);
+            conn.on('open', () => {
+                statusDiv.textContent = '✅ CONECTADO! Conexão bem-sucedida.';
+                console.log('Conectado com: ' + conn.peer);
+                // Envia uma mensagem de teste
+                conn.send('Olá! Esta é uma mensagem de teste.');
             });
 
-            statusDiv.textContent = 'Câmeras encontradas! Escolha uma abaixo.';
-            cameraSelectorContainer.style.display = 'block';
-        }
-
-        // Função para iniciar a câmera selecionada
-        async function startSelectedCamera() {
-            const selectedDeviceId = cameraSelect.value;
-            if (!selectedDeviceId) return;
-
-            statusDiv.innerHTML = '<span class="loading">Iniciando câmera selecionada...</span>';
-            
-            if (localStream) {
-                localStream.getTracks().forEach(track => track.stop());
-            }
-
-            try {
-                const constraints = { 
-                    video: { deviceId: { exact: selectedDeviceId } }, 
-                    audio: false 
-                };
-                localStream = await navigator.mediaDevices.getUserMedia(constraints);
-                video.srcObject = localStream;
-                
-                statusDiv.textContent = 'Câmera ativa! Iniciando serviço de conexão...';
-                initPeerConnection();
-
-            } catch (err) {
-                console.error("Erro ao iniciar câmera:", err);
-                statusDiv.textContent = `Erro ao iniciar câmera: ${err.message}`;
-            }
-        }
-
-        // Função para iniciar a conexão Peer
-        function initPeerConnection() {
-            peer = new Peer(cameraId);
-            
-            peer.on('open', (id) => {
-                cameraIdDiv.innerHTML = `<strong>ID da Câmera:</strong><br>${id}`;
-                statusDiv.textContent = 'Pronto para conexão! Escaneie o QR Code ou use o ID.';
-                qrContainer.style.display = 'block';
-                new QRCode(document.getElementById('qrcode'), { text: id, width: 200, height: 200 });
+            conn.on('error', (err) => {
+                statusDiv.textContent = `❌ ERRO DE CONEXÃO: ${err.type}`;
+                console.error('Erro na conexão:', err);
             });
-
-            peer.on('call', (call) => {
-                statusDiv.textContent = 'Espectador conectado!';
-                call.answer(localStream);
-            });
-
-            peer.on('disconnected', () => {
-                statusDiv.textContent = 'Espectador desconectado. Aguardando nova conexão...';
-            });
-
-            peer.on('error', (err) => {
-                console.error(err);
-                statusDiv.textContent = `Erro de conexão: ${err.type}`;
-            });
-        }
-
-        // Event Listeners
-        applyCameraBtn.onclick = startSelectedCamera;
-
-        // Inicia tudo
-        discoverCameras();
+        };
     </script>
 </body>
 </html>
