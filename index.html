@@ -1,553 +1,116 @@
 <!DOCTYPE html>
-<html lang="pt-br">
+<html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>ChatWebRTC Profissional</title>
+    <title>Câmera com QR Code</title>
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        /* --- CONFIGURAÇÕES GERAIS --- */
-        :root {
-            --bg-dark: #121212;
-            --bg-medium: #1e1e1e;
-            --bg-light: #2a2a2a;
-            --text-primary: #f1f1f1;
-            --text-secondary: #aaaaaa;
-            --accent-blue: #0d7dfd;
-            --accent-green: #31d249;
-            --accent-red: #e74c3c;
-        }
-
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
-
-        body {
-            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-            background-color: var(--bg-dark);
-            color: var(--text-primary);
-            display: flex;
-            flex-direction: column;
-            height: 100vh;
-            overflow: hidden;
-        }
-
-        /* --- CABEÇALHO UNIFICADO --- */
-        .main-header {
-            background-color: var(--bg-medium);
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--bg-light);
-            z-index: 100;
-            flex-wrap: wrap;
-            gap: 15px;
-        }
-
-        .main-header h1 {
-            font-size: 1.2rem;
-            font-weight: 600;
-        }
-
-        .header-controls {
-            display: flex;
-            align-items: center;
-            gap: 15px;
-            flex-wrap: wrap;
-        }
-
-        .user-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-        }
-
-        #meuId {
-            font-family: 'Courier New', Courier, monospace;
-            color: var(--accent-blue);
-            font-weight: bold;
-        }
-
-        .connection-info {
-            display: flex;
-            align-items: center;
-            gap: 10px;
-            padding: 5px;
-            background-color: var(--bg-light);
-            border-radius: 5px;
-        }
-
-        #id_amigo {
-            padding: 6px 10px;
-            border: 1px solid var(--bg-dark);
-            border-radius: 5px;
-            background-color: var(--bg-dark);
-            color: var(--text-primary);
-            font-size: 0.9rem;
-        }
-
-        #id_amigo:focus {
-            outline: none;
-            border-color: var(--accent-blue);
-        }
-
-        .main-header button {
-            padding: 6px 12px;
-            border: none;
-            border-radius: 5px;
-            background-color: var(--bg-light);
-            color: var(--text-primary);
-            cursor: pointer;
-            font-size: 0.9rem;
-            transition: background-color 0.2s;
-            white-space: nowrap; /* Impede que o texto do botão quebre */
-        }
-
-        .main-header button:hover:not(:disabled) {
-            background-color: #3a3a3a;
-        }
-        
-        .main-header button:disabled {
-            opacity: 0.6;
-            cursor: not-allowed;
-        }
-        
-        #btn-conectar {
-            background-color: var(--accent-blue);
-            font-weight: bold;
-        }
-        #btn-conectar:hover:not(:disabled) {
-            background-color: #0066c0;
-        }
-        
-        #btn-chamada-video {
-            background-color: var(--accent-green);
-            font-weight: bold;
-        }
-        #btn-chamada-video:hover:not(:disabled) {
-            background-color: #26a741;
-        }
-
-        /* --- CORPO DA APLICAÇÃO --- */
-        .app-body {
-            display: flex;
-            flex-direction: column;
-            flex-grow: 1;
-            position: relative;
-        }
-
-        /* --- ÁREA DE VÍDEO --- */
-        .video-area {
-            flex-grow: 1;
-            position: relative;
-            background-color: #000;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-        }
-
-        #videoAmigo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-        }
-
-        .pip-video {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            width: 200px;
-            height: 150px;
-            background-color: var(--bg-dark);
-            border: 2px solid var(--bg-light);
-            border-radius: 8px;
-            overflow: hidden;
-            box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-        }
-
-        #meuVideo {
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            transform: scaleX(-1);
-        }
-
-        /* --- CONTROLES DE CHAMADA --- */
-        .call-controls {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            display: flex;
-            gap: 15px;
-        }
-
-        .call-controls button {
-            width: 60px;
-            height: 60px;
-            border-radius: 50%;
-            border: none;
-            font-size: 24px;
-            cursor: pointer;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            transition: transform 0.1s, background-color 0.2s;
-        }
-
-        .call-controls button:hover {
-            transform: scale(1.1);
-        }
-
-        .btn-accept { background-color: var(--accent-green); }
-        .btn-decline { background-color: var(--accent-red); }
-        .btn-end-call { background-color: var(--accent-red); }
-
-        /* --- UI DE CHAMADA RECEBIDA --- */
-        #incomingCallUI {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background-color: rgba(30, 30, 30, 0.9);
-            padding: 30px 40px;
-            border-radius: 12px;
-            text-align: center;
-            z-index: 10;
-        }
-
-        #incomingCallUI p {
-            margin-bottom: 20px;
-            font-size: 1.2rem;
-        }
-
-        /* --- ÁREA DE CHAT --- */
-        .chat-area {
-            height: 200px;
-            background-color: var(--bg-medium);
-            border-top: 1px solid var(--bg-light);
-            display: flex;
-            flex-direction: column;
-        }
-
-        .message-history {
-            flex-grow: 1;
-            padding: 15px;
-            overflow-y: auto;
-            display: flex;
-            flex-direction: column;
-            gap: 10px;
-        }
-        .message-history::-webkit-scrollbar { width: 6px; }
-        .message-history::-webkit-scrollbar-thumb { background: var(--bg-light); border-radius: 3px; }
-
-        .mensagem {
-            max-width: 70%;
-            padding: 8px 12px;
-            border-radius: 15px;
-            line-height: 1.4;
-        }
-        .mensagem-enviada { background-color: var(--accent-blue); align-self: flex-end; border-bottom-right-radius: 5px; }
-        .mensagem-recebida { background-color: var(--bg-light); align-self: flex-start; border-bottom-left-radius: 5px; }
-        .mensagem-sistema { align-self: center; color: var(--text-secondary); font-size: 0.85rem; }
-
-        .chat-input-bar {
-            display: flex;
-            padding: 10px;
-            gap: 10px;
-            border-top: 1px solid var(--bg-light);
-        }
-
-        #enviaMensagem {
-            flex-grow: 1;
-            border: none;
-            padding: 10px;
-            border-radius: 20px;
-            background-color: var(--bg-light);
-            color: var(--text-primary);
-            resize: none;
-        }
-        #enviaMensagem:focus { outline: none; }
-        .chat-input-bar button {
-            padding: 0 20px;
-            border: none;
-            border-radius: 20px;
-            background-color: var(--accent-blue);
-            color: white;
-            cursor: pointer;
-            font-weight: bold;
-        }
-
-        /* --- RESPONSIVIDADE --- */
-        @media (max-width: 768px) {
-            .main-header {
-                flex-direction: column;
-                align-items: stretch;
-            }
-            .header-controls {
-                justify-content: center;
-            }
-            .app-body {
-                flex-direction: column;
-            }
-            .video-area {
-                height: 60vh; /* Ocupa 60% da altura da tela */
-                flex-grow: 0;
-            }
-            .chat-area {
-                height: 40vh; /* Ocupa 40% da altura da tela */
-                flex-grow: 0;
-            }
-            .pip-video {
-                width: 120px;
-                height: 90px;
-                bottom: 10px;
-                right: 10px;
-            }
-        }
-
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #1a1a1a; color: #f0f0f0; text-align: center; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; min-height: 100vh; box-sizing: border-box; }
+        h1 { color: #4fc3f7; margin-bottom: 10px; }
+        .subtitle { color: #aaa; margin-bottom: 20px; }
+        #video { width: 100%; max-width: 400px; border-radius: 12px; background: #000; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+        .qr-container { margin: 20px 0; padding: 20px; background: #fff; border-radius: 12px; display: inline-block; box-shadow: 0 4px 15px rgba(0,0,0,0.2); }
+        #qrcode { padding: 10px; background: white; }
+        #status { margin-top: 20px; font-size: 18px; color: #4fc3f7; font-weight: bold; }
+        .instructions { background: #333; padding: 15px; border-radius: 8px; margin-top: 20px; max-width: 400px; }
+        .wake-lock-btn { background: #ff9800; color: white; border: none; padding: 10px 15px; border-radius: 8px; cursor: pointer; font-weight: bold; margin-top: 15px; }
+        .wake-lock-btn:disabled { background: #555; cursor: not-allowed; }
+        .warning { background: #d32f2f; color: white; padding: 10px; border-radius: 8px; margin-top: 15px; }
     </style>
 </head>
 <body>
+    <h1>📹 Câmera de Vigilância</h1>
+    <p class="subtitle">Escaneie este QR Code com o app do espectador</p>
 
-    <!-- CABEÇALHO UNIFICADO -->
-    <header class="main-header">
-        <h1>ChatWebRTC</h1>
-        <div class="header-controls">
-            <div class="user-info">
-                <span>Seu ID: <strong id="meuId">...</strong></span>
-                <button onclick="copiarId()">📋 Copiar</button>
-                <button onclick="compartilharId()">🔗 Compartilhar</button>
-            </div>
-            <div class="connection-info">
-                <input id="id_amigo" type="text" placeholder="ID do parceiro">
-                <button id="btn-conectar" onclick="conectar()">Conectar</button>
-                <button id="btn-chamada-video" onclick="chamadaVideo()" disabled>📹 Ligar Vídeo</button>
-            </div>
-        </div>
-    </header>
+    <video id="video" autoplay muted playsinline></video>
+    
+    <div class="qr-container">
+        <div id="qrcode"></div>
+    </div>
 
-    <!-- CORPO DA APLICAÇÃO -->
-    <main class="app-body">
-        <!-- ÁREA DE VÍDEO -->
-        <section class="video-area">
-            <video id="videoAmigo" autoplay playsinline></video>
-            <div class="pip-video">
-                <video id="meuVideo" autoplay muted playsinline></video>
-            </div>
+    <div id="status">Gerando QR Code...</div>
+    <button id="wakeLockBtn" class="wake-lock-btn">Manter Tela Ativa</button>
+    
+    <div class="instructions">
+        <strong>Instruções:</strong><br>
+        1. Permita o acesso à câmera.<br>
+        2. Clique em "Manter Tela Ativa".<br>
+        3. <strong>NÃO feche esta página nem apague a tela.</strong><br>
+        4. Para melhorar, vá em Config. > Bateria > e desative a "Otimização de Bateria" para este navegador.
+    </div>
+    <div class="warning">
+        <strong>Atenção:</strong> Este é um site. Para funcionar 24/7, ele precisa ficar aberto na tela.
+    </div>
 
-            <!-- UI DE CHAMADA RECEBIDA (INICIALMENTE ESCONDIDA) -->
-            <div id="incomingCallUI" style="display: none;">
-                <p>Chamada de: <strong id="chamadaDeId">...</strong></p>
-                <div class="call-controls">
-                    <button class="btn-accept" onclick="atenderChamada()">✓</button>
-                    <button class="btn-decline" onclick="recusarChamada()">✕</button>
-                </div>
-            </div>
-
-            <!-- CONTROLES DA CHAMADA ATIVA (INICIALMENTE ESCONDIDOS) -->
-            <div id="activeCallControls" class="call-controls" style="display: none;">
-                <button class="btn-end-call" onclick="encerrarChamada()">✕</button>
-            </div>
-        </section>
-
-        <!-- ÁREA DE CHAT -->
-        <footer class="chat-area">
-            <div id="container-mensagens" class="message-history"></div>
-            <div class="chat-input-bar">
-                <textarea onkeypress="trataEnter(event)" id="enviaMensagem" placeholder="Digite uma mensagem..."></textarea>
-                <button onclick="enviarMensagem()">Enviar</button>
-            </div>
-        </footer>
-    </main>
-
-    <!-- SCRIPT -->
-    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script>
-        // --- VARIÁVEIS GLOBAIS ---
-        let peer;
-        let conn;
-        let currentPeerId;
-        let minhaStream;
-        let currentCall;
-        let incomingCall;
-
-        // --- ELEMENTOS DO DOM ---
-        const meuVideoEl = document.getElementById('meuVideo');
-        const videoAmigoEl = document.getElementById('videoAmigo');
-        const meuIdEl = document.getElementById('meuId');
-        const idAmigoEl = document.getElementById('id_amigo');
-        const btnConectarEl = document.getElementById('btn-conectar');
-        const btnChamadaVideoEl = document.getElementById('btn-chamada-video');
-        const mensagensContainerEl = document.getElementById('container-mensagens');
-        const enviaMensagemEl = document.getElementById('enviaMensagem');
-        const incomingCallUIEl = document.getElementById('incomingCallUI');
-        const chamadaDeIdEl = document.getElementById('chamadaDeId');
-        const activeCallControlsEl = document.getElementById('activeCallControls');
-
-        // --- INICIALIZAÇÃO PEERJS ---
-        peer = new Peer();
-        peer.on('open', (id) => { meuIdEl.textContent = id; });
-
-        // --- LÓGICA DE CHAMADA DE VÍDEO ---
-        peer.on('call', async (call) => {
-            incomingCall = call;
-            chamadaDeIdEl.textContent = call.peer;
-            incomingCallUIEl.style.display = 'block';
-        });
-
-        async function atenderChamada() {
-            if (!incomingCall) return;
-            
-            minhaStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, 
-                audio: true 
-            });
-            meuVideoEl.srcObject = minhaStream;
-            
-            incomingCall.answer(minhaStream);
-            incomingCall.on('stream', (remoteStream) => {
-                videoAmigoEl.srcObject = remoteStream;
-            });
-            
-            currentCall = incomingCall;
-            incomingCall = null;
-            incomingCallUIEl.style.display = 'none';
-            activeCallControlsEl.style.display = 'flex';
-        }
-
-        function recusarChamada() {
-            if (incomingCall) {
-                incomingCall.close();
-                incomingCall = null;
-            }
-            incomingCallUIEl.style.display = 'none';
-        }
-
-        async function chamadaVideo() {
-            if (!currentPeerId) {
-                exibirMensagem('Conecte-se a alguém primeiro!', 'sistema');
-                return;
-            }
-            if (currentCall) {
-                alert('Você já está em uma chamada.');
-                return;
-            }
-
-            minhaStream = await navigator.mediaDevices.getUserMedia({ 
-                video: { width: { ideal: 1920 }, height: { ideal: 1080 } }, 
-                audio: true 
-            });
-            meuVideoEl.srcObject = minhaStream;
-
-            const call = peer.call(currentPeerId, minhaStream);
-            call.on('stream', (remoteStream) => { videoAmigoEl.srcObject = remoteStream; });
-            call.on('close', () => limparChamada());
-            
-            currentCall = call;
-            activeCallControlsEl.style.display = 'flex';
-        }
-
-        function encerrarChamada() {
-            if (currentCall) {
-                currentCall.close();
-            }
-            limparChamada();
-        }
-
-        function limparChamada() {
-            if (minhaStream) {
-                minhaStream.getTracks().forEach(track => track.stop());
-            }
-            meuVideoEl.srcObject = null;
-            videoAmigoEl.srcObject = null;
-            currentCall = null;
-            minhaStream = null;
-            activeCallControlsEl.style.display = 'none';
-        }
-
-        // --- LÓGICA DE CONEXÃO E CHAT ---
-        peer.on('connection', (connection) => {
-            conn = connection;
-            currentPeerId = connection.peer;
-            setupConnectionHandlers();
-            updateConnectionUI(true);
-            exibirMensagem(`${connection.peer} conectado.`, 'sistema');
-        });
-
-        function conectar() {
-            const amigoId = idAmigoEl.value.trim();
-            if (!amigoId) return;
-            
-            conn = peer.connect(amigoId);
-            conn.on('open', () => {
-                currentPeerId = amigoId;
-                setupConnectionHandlers();
-                updateConnectionUI(true);
-                exibirMensagem('Conectado. Agora você pode ligar o vídeo.', 'sistema');
-            });
-        }
-
-        function setupConnectionHandlers() {
-            conn.on('data', (data) => { if (data.type === 'chat') exibirMensagem(data.text, 'recebida'); });
-            conn.on('close', () => {
-                exibirMensagem('Conexão encerrada.', 'sistema');
-                updateConnectionUI(false);
-                currentPeerId = null;
-                limparChamada(); // Garante que a chamada também seja limpa
-            });
-        }
-
-        function updateConnectionUI(isConnected) {
-            idAmigoEl.disabled = isConnected;
-            btnConectarEl.disabled = isConnected;
-            btnConectarEl.textContent = isConnected ? 'Conectado' : 'Conectar';
-            btnChamadaVideoEl.disabled = !isConnected;
-        }
-
-        function enviarMensagem() {
-            const texto = enviaMensagemEl.value.trim();
-            if (texto && conn && conn.open) {
-                conn.send({ type: 'chat', text: texto });
-                exibirMensagem(texto, 'enviada');
-                enviaMensagemEl.value = '';
-            } else {
-                exibirMensagem('Não conectado.', 'sistema');
-            }
-        }
-
-        function exibirMensagem(texto, tipo) {
-            const mensagemEl = document.createElement('div');
-            mensagemEl.classList.add('mensagem', `mensagem-${tipo}`);
-            mensagemEl.textContent = texto;
-            mensagensContainerEl.appendChild(mensagemEl);
-            mensagensContainerEl.scrollTop = mensagensContainerEl.scrollHeight;
-        }
-
-        // --- UTILITÁRIOS ---
-        function trataEnter(e) { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); enviarMensagem(); } }
+        const video = document.getElementById('video');
+        const statusDiv = document.getElementById('status');
+        const qrcodeDiv = document.getElementById('qrcode');
+        const wakeLockBtn = document.getElementById('wakeLockBtn');
         
-        async function copiarId() {
-            try {
-                await navigator.clipboard.writeText(meuIdEl.textContent);
-                // Melhor que um alert()
-                const originalText = btnConectarEl.previousElementSibling.textContent;
-                exibirMensagem('ID copiado para a área de transferência!', 'sistema');
-            } catch(err) { alert('Falha ao copiar.'); }
-        }
+        let localStream;
+        let peer;
+        let wakeLock = null;
+        const cameraId = 'cam-' + Math.random().toString(36).substr(2, 9);
 
-        async function compartilharId() {
-            const id = meuIdEl.textContent;
-            if (navigator.share) {
-                try {
-                    await navigator.share({ title: 'Meu ID ChatWebRTC', text: `Conecte-se comigo no ChatWebRTC usando meu ID: ${id}` });
-                } catch (err) { console.log('Compartilhamento cancelado.'); }
-            } else {
-                copiarId(); // Fallback
+        // Função para manter a tela ativa
+        async function requestWakeLock() {
+            try {
+                wakeLock = await navigator.wakeLock.request('screen');
+                statusDiv.textContent = 'Tela ativa! Pronto para conexão.';
+                wakeLockBtn.textContent = 'Tela Ativa (OK)';
+                wakeLockBtn.disabled = true;
+
+                wakeLock.addEventListener('release', () => {
+                    statusDiv.textContent = 'A tela foi desbloqueada. O app pode parar.';
+                    wakeLockBtn.textContent = 'Manter Tela Ativa';
+                    wakeLockBtn.disabled = false;
+                });
+
+            } catch (err) {
+                console.error(`Falha ao ativar Wake Lock: ${err.name}, ${err.message}`);
+                statusDiv.textContent = `Não foi possível manter a tela ativa: ${err.message}`;
             }
         }
+
+        wakeLockBtn.addEventListener('click', requestWakeLock);
+
+        // O resto do código é o mesmo...
+        async function init() {
+            try {
+                localStream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: 'environment' }, audio: false });
+                video.srcObject = localStream;
+
+                peer = new Peer(cameraId);
+                
+                peer.on('open', (id) => {
+                    new QRCode(qrcodeDiv, { text: id, width: 200, height: 200 });
+                    statusDiv.textContent = 'Pronto! Clique em "Manter Tela Ativa".';
+                });
+
+                peer.on('call', (call) => {
+                    statusDiv.textContent = 'Espectador conectado!';
+                    call.answer(localStream);
+                });
+
+                peer.on('disconnected', () => {
+                    statusDiv.textContent = 'Espectador desconectado. Aguardando nova conexão...';
+                });
+
+                peer.on('error', (err) => {
+                    console.error(err);
+                    statusDiv.textContent = `Erro: ${err.type}`;
+                });
+
+            } catch (err) {
+                console.error("Erro ao inicializar:", err);
+                statusDiv.textContent = 'Erro: Verifique as permissões da câmera.';
+            }
+        }
+
+        init();
     </script>
 </body>
 </html>

@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Painel de Vigilância (Scanner)</title>
+    <!-- Bibliotecas necessárias -->
+    <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+    <style>
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background: #121212; color: #e0e0e0; text-align: center; margin: 0; padding: 10px; }
+        h1 { color: #81c784; }
+        .viewer-grid { display: grid; grid-template-columns: 1fr; gap: 15px; max-width: 500px; margin: 20px auto; }
+        .video-container { background: #000; border: 2px solid #81c784; border-radius: 12px; aspect-ratio: 4 / 3; display: flex; align-items: center; justify-content: center; position: relative; }
+        video { width: 100%; height: 100%; object-fit: cover; border-radius: 10px; }
+        .placeholder { color: #555; font-size: 18px; }
+        .status-bar { position: absolute; bottom: 0; left: 0; right: 0; background: rgba(0,0,0,0.6); color: white; padding: 5px; border-bottom-left-radius: 10px; border-bottom-right-radius: 10px; font-size: 12px; }
+        .scanner-container { max-width: 400px; margin: 20px auto; }
+        #reader { width: 100%; }
+        .controls { background: #1e1e1e; padding: 20px; border-radius: 12px; max-width: 400px; margin: 20px auto; }
+        button { background: #81c784; color: #121212; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; width: 100%; margin-bottom: 10px; }
+        button:hover { background: #66bb6a; }
+        button:disabled { background: #555; cursor: not-allowed; }
+        .instructions { background: #333; padding: 15px; border-radius: 8px; margin-top: 20px; text-align: left; }
+    </style>
+</head>
+<body>
+    <h1>📺 Painel de Vigilância</h1>
+    
+    <div class="viewer-grid" id="video-grid">
+        <!-- Os vídeos das câmeras aparecerão aqui dinamicamente -->
+    </div>
+    
+    <div class="controls">
+        <h3>Conectar Nova Câmera</h3>
+        <button id="start-scan-btn">Iniciar Scanner de QR Code</button>
+        <button id="stop-scan-btn" disabled>Parar Scanner</button>
+    </div>
+
+    <div id="reader" style="width: 300px; margin: 20px auto;"></div>
+    
+    <div class="instructions">
+        <strong>Como usar:</strong><br>
+        1. Clique em "Iniciar Scanner de QR Code".<br>
+        2. Aponte a câmera deste celular para a tela do celular da câmera.<br>
+        3. Mantenha o QR Code centralizado até a conexão ser feita.
+    </div>
+
+    <script>
+        const startScanBtn = document.getElementById('start-scan-btn');
+        const stopScanBtn = document.getElementById('stop-scan-btn');
+        const videoGrid = document.getElementById('video-grid');
+        
+        let peer;
+        let html5QrCode;
+        let connectedCameras = 0;
+
+        async function init() {
+            peer = new Peer();
+            peer.on('open', () => console.log('Espectador pronto.'));
+            peer.on('error', (err) => console.error('Erro no PeerJS (Espectador):', err));
+        }
+
+        function onScanSuccess(decodedText, decodedResult) {
+            // Parar o scanner imediatamente para não conectar múltiplas vezes
+            html5QrCode.stop();
+            stopScanBtn.disabled = true;
+            startScanBtn.disabled = false;
+
+            console.log(`Código escaneado: ${decodedText}`);
+            connectToCamera(decodedText);
+        }
+
+        function onScanFailure(error) {
+            // Ignora falhas de scan, é normal
+            // console.warn(`Falha no scan: ${error}`);
+        }
+
+        startScanBtn.onclick = () => {
+            html5QrCode = new Html5Qrcode("reader");
+            Html5Qrcode.getCameras().then(devices => {
+                if (devices && devices.length) {
+                    const cameraId = devices[0].id;
+                    html5QrCode.start(
+                        cameraId, 
+                        { fps: 10, qrbox: { width: 250, height: 250 } },
+                        onScanSuccess, 
+                        onScanFailure
+                    ).then(() => {
+                        startScanBtn.disabled = true;
+                        stopScanBtn.disabled = false;
+                    }).catch((err) => {
+                        console.error(`Não foi possível iniciar o scanner: ${err}`);
+                        alert("Não foi possível acessar a câmera para escanear. Verifique as permissões.");
+                    });
+                }
+            }).catch(err => {
+                console.error("Erro ao obter câmeras:", err);
+                alert("Não foi possível encontrar uma câmera neste dispositivo.");
+            });
+        };
+
+        stopScanBtn.onclick = () => {
+            if (html5QrCode) {
+                html5QrCode.stop().then(() => {
+                    stopScanBtn.disabled = true;
+                    startScanBtn.disabled = false;
+                }).catch((err) => {
+                    console.error(`Falha ao parar o scanner: ${err}`);
+                });
+            }
+        };
+
+        function connectToCamera(cameraId) {
+            if (connectedCameras >= 2) {
+                alert("Você já conectou o número máximo de câmeras (2).");
+                return;
+            }
+
+            try {
+                const call = peer.call(cameraId);
+                
+                call.on('stream', (remoteStream) => {
+                    console.log(`Recebendo stream de ${cameraId}`);
+                    addVideoToGrid(cameraId, remoteStream);
+                    connectedCameras++;
+                });
+
+                call.on('close', () => {
+                    console.log(`Conexão com ${cameraId} fechada.`);
+                    removeVideoFromGrid(cameraId);
+                    connectedCameras--;
+                });
+
+            } catch (err) {
+                console.error('Erro ao conectar:', err);
+                alert(`Não foi possível conectar à câmera. O QR Code pode ser inválido ou a câmera está offline.`);
+            }
+        }
+
+        function addVideoToGrid(cameraId, stream) {
+            const videoContainer = document.createElement('div');
+            videoContainer.className = 'video-container';
+            videoContainer.id = `container-${cameraId}`;
+
+            const video = document.createElement('video');
+            video.autoplay = true;
+            video.playsinline = true;
+            video.srcObject = stream;
+
+            const statusBar = document.createElement('div');
+            statusBar.className = 'status-bar';
+            statusBar.textContent = cameraId;
+
+            videoContainer.appendChild(video);
+            videoContainer.appendChild(statusBar);
+            videoGrid.appendChild(videoContainer);
+        }
+        
+        function removeVideoFromGrid(cameraId) {
+            const container = document.getElementById(`container-${cameraId}`);
+            if (container) {
+                container.remove();
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
