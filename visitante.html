@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel de Vigilância (Scanner com Seletor)</title>
+    <title>Painel de Vigilância (Debug)</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
     <style>
@@ -17,18 +17,19 @@
         .controls { background: #1e1e1e; padding: 20px; border-radius: 12px; max-width: 500px; margin: 20px auto; }
         .input-group { display: flex; gap: 10px; margin-bottom: 15px; }
         input { flex-grow: 1; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #2c2c2c; color: #e0e0e0; font-size: 16px; }
-        button { background: #03dac6; color: #121212; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; white-space: nowrap; width: 100%; margin-bottom: 10px; }
+        button { background: #03dac6; color: #121212; border: none; padding: 12px 20px; border-radius: 8px; cursor: pointer; font-size: 16px; font-weight: bold; white-space: nowrap; }
         button:hover { background: #03c1b8; }
         button:disabled { background: #555; cursor: not-allowed; }
         #reader { width: 300px; margin: 20px auto; }
-        #scan-status { margin-top: 10px; font-size: 14px; color: #aaa; min-height: 20px; }
+        #scan-status { margin-top: 10px; font-size: 14px; color: #03dac6; min-height: 20px; font-weight: bold; } /* Status mais visível */
         select { width: 100%; padding: 12px; border-radius: 8px; border: 1px solid #444; background: #2c2c2c; color: #e0e0e0; font-size: 16px; margin-bottom: 15px; }
         .scanner-controls { display: flex; gap: 10px; }
         .scanner-controls button { flex-grow: 1; }
+        .debug-log { background: #333; color: #0f0; padding: 10px; border-radius: 8px; margin-top: 20px; max-width: 500px; margin-left: auto; margin-right: auto; text-align: left; font-family: monospace; font-size: 12px; max-height: 150px; overflow-y: auto; }
     </style>
 </head>
 <body>
-    <h1>📺 Painel de Vigilância</h1>
+    <h1>📺 Painel de Vigilância (Debug)</h1>
     
     <div class="viewer-grid" id="video-grid">
         <!-- Os vídeos das câmeras aparecerão aqui -->
@@ -49,10 +50,14 @@
             <button id="start-scan-btn">Escanear QR Code</button>
             <button id="stop-scan-btn" disabled>Parar Scanner</button>
         </div>
-        <div id="scan-status"></div>
+        <div id="scan-status">Aguardando ação...</div>
     </div>
 
     <div id="reader"></div>
+    
+    <div class="debug-log" id="debug-log">
+        <strong>Log de Depuração:</strong><br>
+    </div>
 
     <script>
         const videoGrid = document.getElementById('video-grid');
@@ -62,24 +67,33 @@
         const stopScanBtn = document.getElementById('stop-scan-btn');
         const scanStatusDiv = document.getElementById('scan-status');
         const scannerCameraSelect = document.getElementById('scanner-camera-select');
+        const debugLog = document.getElementById('debug-log');
         
         let peer;
         let html5QrCode;
         let connectedCameras = 0;
         let allScannerCameras = [];
 
-        async function init() {
-            peer = new Peer();
-            peer.on('open', () => console.log('Espectador pronto.'));
-            peer.on('error', (err) => console.error('Erro no PeerJS (Espectador):', err));
-            
-            // Descobre as câmeras para o scanner ao iniciar
-            await discoverScannerCameras();
+        function log(message) {
+            console.log(message);
+            debugLog.innerHTML += `${new Date().toLocaleTimeString()}: ${message}<br>`;
+            debugLog.scrollTop = debugLog.scrollHeight;
         }
 
-        // Função para descobrir câmeras para o scanner
+        async function init() {
+            log("Inicializando Espectador...");
+            try {
+                peer = new Peer();
+                peer.on('open', (id) => log(`Espectador pronto. ID do espectador: ${id}`));
+                peer.on('error', (err) => log(`ERRO no PeerJS: ${err}`));
+                await discoverScannerCameras();
+            } catch (err) {
+                log(`ERRO FATAL na inicialização: ${err}`);
+            }
+        }
+
         async function discoverScannerCameras() {
-            scanStatusDiv.textContent = 'Descobrindo câmeras para o scanner...';
+            log("Descobrindo câmeras para o scanner...");
             try {
                 const devices = await Html5Qrcode.getCameras();
                 allScannerCameras = devices;
@@ -91,43 +105,43 @@
                         const option = document.createElement('option');
                         option.value = camera.id;
                         const label = camera.label || `Câmera ${index + 1}`;
-                        option.text = label.includes('back') || label.includes('traseira') || label.includes('environment') ? `📷 ${label} (Provável Traseira)` : `🤳 ${label}`;
+                        option.text = label.includes('back') || label.includes('traseira') ? `📷 ${label} (Provável Traseira)` : `🤳 ${label}`;
                         scannerCameraSelect.appendChild(option);
-                        // Define a câmera traseira como padrão
-                        if (option.text.includes('Traseira')) {
-                            defaultCameraIndex = index;
-                        }
+                        if (option.text.includes('Traseira')) defaultCameraIndex = index;
                     });
                     scannerCameraSelect.selectedIndex = defaultCameraIndex;
                     startScanBtn.disabled = false;
-                    scanStatusDiv.textContent = 'Câmeras prontas. Selecione e clique em "Escanear".';
+                    log("Câmeras descobertas e listadas.");
                 } else {
-                    scanStatusDiv.textContent = 'Nenhuma câmera encontrada para escanear.';
+                    log("ERRO: Nenhuma câmera encontrada para escanear.");
                     startScanBtn.disabled = true;
                 }
             } catch (err) {
-                console.error("Erro ao descobrir câmeras do scanner:", err);
-                scanStatusDiv.textContent = 'Erro ao buscar câmeras. Verifique as permissões.';
+                log(`ERRO ao descobrir câmeras: ${err}`);
                 startScanBtn.disabled = true;
             }
         }
 
         function onScanSuccess(decodedText) {
+            log(`SUCESSO! QR Code lido: ${decodedText}`);
             html5QrCode.stop();
             stopScanBtn.disabled = true;
             startScanBtn.disabled = false;
-            scanStatusDiv.textContent = `QR Code encontrado: ${decodedText}`;
+            scanStatusDiv.textContent = `QR Code encontrado! Conectando a ${decodedText}...`;
+            
+            // Preenche o campo manual e conecta
+            manualIdInput.value = decodedText;
             connectToCamera(decodedText);
         }
 
         function onScanFailure(error) {
-            // Ignora falhas de scan, é normal
+            // Não logar falhas de scan a cada frame para não poluir
+            // scanStatusDiv.textContent = "Escaneando..."; 
         }
 
         startScanBtn.onclick = () => {
             const selectedCameraId = scannerCameraSelect.value;
-            if (!selectedCameraId) return;
-
+            log(`Iniciando scanner com a câmera ID: ${selectedCameraId}`);
             scanStatusDiv.textContent = 'Iniciando scanner...';
             html5QrCode = new Html5Qrcode("reader");
             
@@ -140,8 +154,9 @@
                 startScanBtn.disabled = true;
                 stopScanBtn.disabled = false;
                 scanStatusDiv.textContent = 'Escaneando... Aponte para o QR Code.';
+                log("Scanner iniciado com sucesso.");
             }).catch((err) => {
-                console.error(`Não foi possível iniciar o scanner: ${err}`);
+                log(`ERRO FATAL ao iniciar o scanner: ${err}`);
                 scanStatusDiv.textContent = `Falha ao iniciar scanner: ${err}`;
                 startScanBtn.disabled = false;
             });
@@ -153,8 +168,9 @@
                     stopScanBtn.disabled = true;
                     startScanBtn.disabled = false;
                     scanStatusDiv.textContent = 'Scanner parado.';
+                    log("Scanner parado pelo usuário.");
                 }).catch((err) => {
-                    console.error(`Falha ao parar o scanner: ${err}`);
+                    log(`ERRO ao parar o scanner: ${err}`);
                 });
             }
         };
@@ -162,31 +178,46 @@
         connectManualBtn.onclick = () => {
             const cameraId = manualIdInput.value.trim();
             if (cameraId) {
+                log(`Tentando conexão manual com: ${cameraId}`);
                 connectToCamera(cameraId);
+            } else {
+                log("ERRO: ID manual está vazio.");
             }
         };
 
         function connectToCamera(cameraId) {
             if (connectedCameras >= 2) {
+                log("ERRO: Número máximo de câmeras conectadas.");
                 alert("Número máximo de câmeras conectadas.");
                 return;
             }
             scanStatusDiv.textContent = `Conectando a ${cameraId}...`;
             try {
                 const call = peer.call(cameraId);
+                
                 call.on('stream', (remoteStream) => {
-                    console.log(`Recebendo stream de ${cameraId}`);
+                    log(`SUCESSO! Stream recebido de ${cameraId}. Adicionando ao grid.`);
                     addVideoToGrid(cameraId, remoteStream);
                     connectedCameras++;
                     scanStatusDiv.textContent = `Conectado a ${cameraId}!`;
                 });
+
                 call.on('close', () => {
+                    log(`Conexão com ${cameraId} foi fechada.`);
                     removeVideoFromGrid(cameraId);
                     connectedCameras--;
                 });
+
+                // ESTE É O TRATAMENTO DE ERRO QUE FALTAVA!
+                call.on('error', (err) => {
+                    log(`ERRO CRÍTICO na chamada para ${cameraId}: ${err}`);
+                    scanStatusDiv.textContent = `Falha na conexão com ${cameraId}. Veja o log.`;
+                    alert(`Falha ao conectar à câmera ${cameraId}. Razão: ${err}. Verifique se a câmera está online e se o ID está correto.`);
+                });
+
             } catch (err) {
-                console.error('Erro ao conectar:', err);
-                scanStatusDiv.textContent = `Falha ao conectar a ${cameraId}.`;
+                log(`ERRO EXCEÇÃO ao tentar chamar ${cameraId}: ${err}`);
+                scanStatusDiv.textContent = `Falha na conexão com ${cameraId}. Veja o log.`;
             }
         }
 
