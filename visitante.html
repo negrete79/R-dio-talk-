@@ -3,46 +3,228 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teste de Conexão - Câmera</title>
+    <title>Espectador - Intercomunicador</title>
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background: #333; color: #fff; text-align: center; padding: 20px; }
-        #id-display { font-size: 24px; font-weight: bold; color: #4CAF50; background: #222; padding: 20px; border-radius: 8px; margin: 20px; }
-        #status { font-size: 20px; margin-top: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #121212; color: #ffffff; text-align: center; margin: 0; padding: 0; }
+        #scan-view, #call-view { height: 100vh; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #scan-view { background: #1e1e1e; }
+        #call-view { background: #000; }
+        h1 { margin-top: 0; }
+        #status { font-size: 18px; margin: 20px; color: #ccc; }
+        #qr-video { width: 100%; max-width: 400px; height: auto; border-radius: 10px; }
+        #local-video { 
+            position: absolute; 
+            top: 20px; 
+            right: 20px; 
+            width: 120px; 
+            height: 160px; 
+            background: #333; 
+            border-radius: 10px; 
+            border: 2px solid #4CAF50;
+            object-fit: cover; /* Garante que o vídeo cubra o espaço sem distorcer */
+            transform: scaleX(-1); /* Espelha a imagem para efeito de espelho */
+        }
+        .controls { position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%); display: flex; gap: 15px; }
+        button { 
+            padding: 15px 25px; 
+            font-size: 18px; 
+            border: none; 
+            border-radius: 50px; 
+            cursor: pointer; 
+            background: #4CAF50; 
+            color: white; 
+            transition: background 0.3s, transform 0.1s;
+        }
+        button:active { transform: scale(0.95); }
+        button:disabled { background: #555; cursor: not-allowed; }
+        #flash-btn { background: #ff9800; }
+        #disconnect-btn { background: #f44336; }
     </style>
 </head>
 <body>
-    <h1>Teste de Conexão (Câmera)</h1>
-    <p>Aguarde o ID aparecer...</p>
-    <div id="id-display">Gerando...</div>
-    <div id="status">Aguardando conexão...</div>
+
+    <!-- TELA 1: Escaneamento do QR Code -->
+    <div id="scan-view">
+        <h1>📷 Conectar ao Transmissor</h1>
+        <p>Aponte a câmera para o QR Code na tela do outro dispositivo.</p>
+        <video id="qr-video" autoplay playsinline></video>
+        <div id="status">Clique em "Iniciar Scanner" para começar.</div>
+        <button id="start-scan-btn">Iniciar Scanner</button>
+    </div>
+
+    <!-- TELA 2: Chamada Ativa (inicialmente escondida) -->
+    <div id="call-view" style="display: none;">
+        <video id="local-video" autoplay muted playsinline></video>
+        <div id="status">Conectado...</div>
+        <div class="controls">
+            <button id="flash-btn">🔦 Flash</button>
+            <button id="disconnect-btn">Desconectar</button>
+        </div>
+    </div>
 
     <script>
-        const idDisplay = document.getElementById('id-display');
+        // Elementos da UI
+        const scanView = document.getElementById('scan-view');
+        const callView = document.getElementById('call-view');
+        const qrVideo = document.getElementById('qr-video');
+        const localVideo = document.getElementById('local-video');
         const statusDiv = document.getElementById('status');
-        const peerId = 'test-' + Math.random().toString(36).substr(2, 9);
+        const startScanBtn = document.getElementById('start-scan-btn');
+        const flashBtn = document.getElementById('flash-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
 
-        const peer = new Peer(peerId);
+        let peer = null;
+        let localStream = null;
+        let currentCall = null;
+        let barcodeDetector = null;
+        let videoTrack = null;
+        let isFlashOn = false;
 
-        peer.on('open', (id) => {
-            idDisplay.textContent = `MEU ID É:\n${id}`;
-            statusDiv.textContent = 'Pronto! Aguardando o outro dispositivo se conectar...';
-            console.log('Meu ID é: ' + id);
-        });
+        // Verifica se o navegador suporta a API de detecção de códigos de barras
+        if (!('BarcodeDetector' in window)) {
+            statusDiv.textContent = '❌ Seu navegador não suporta escaneamento de QR Code. Tente usar o Chrome ou Firefox mais recente.';
+            startScanBtn.disabled = true;
+        } else {
+            barcodeDetector = new BarcodeDetector({ formats: ['qr_code'] });
+        }
 
-        peer.on('connection', (conn) => {
-            statusDiv.textContent = '✅ CONECTADO! O outro dispositivo me encontrou.';
-            console.log('Conectado com: ' + conn.peer);
+        startScanBtn.onclick = startScanning;
+        flashBtn.onclick = toggleFlash;
+        disconnectBtn.onclick = disconnect;
+
+        async function startScanning() {
+            startScanBtn.disabled = true;
+            statusDiv.textContent = 'Acessando a câmera...';
             
-            conn.on('data', (data) => {
-                statusDiv.textContent = `✅ Conectado! Mensagem recebida: "${data}"`;
-            });
-        });
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { facingMode: 'environment' } // Usa a câmera traseira por padrão
+                });
+                qrVideo.srcObject = stream;
+                statusDiv.textContent = 'Procurando por um QR Code...';
+                detectQRCode();
+            } catch (err) {
+                statusDiv.textContent = `❌ Erro ao acessar a câmera: ${err.message}`;
+                console.error(err);
+                startScanBtn.disabled = false;
+            }
+        }
 
-        peer.on('error', (err) => {
-            statusDiv.textContent = `❌ ERRO: ${err.type} - ${err.message}`;
-            console.error('Erro no Peer:', err);
-        });
+        async function detectQRCode() {
+            try {
+                const barcodes = await barcodeDetector.detect(qrVideo);
+                if (barcodes.length > 0) {
+                    const scannedId = barcodes[0].rawValue;
+                    console.log('QR Code detectado:', scannedId);
+                    stopScanning();
+                    connect(scannedId);
+                } else {
+                    requestAnimationFrame(detectQRCode); // Continua escaneando
+                }
+            } catch (err) {
+                console.error('Erro ao detectar QR Code:', err);
+                requestAnimationFrame(detectQRCode);
+            }
+        }
+
+        function stopScanning() {
+            // Para o stream da câmera de escaneamento
+            const tracks = qrVideo.srcObject.getTracks();
+            tracks.forEach(track => track.stop());
+            qrVideo.srcObject = null;
+        }
+
+        async function connect(remoteId) {
+            statusDiv.textContent = `Conectando com ${remoteId}...`;
+            
+            try {
+                // 1. Pega o stream de áudio e vídeo do espectador
+                localStream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+                localVideo.srcObject = localStream;
+                videoTrack = localStream.getVideoTracks()[0];
+
+                // 2. Verifica e configura o botão do flash
+                const capabilities = videoTrack.getCapabilities();
+                if (!capabilities.torch) {
+                    flashBtn.disabled = true;
+                    flashBtn.textContent = '🔦 Flash (Indisponível)';
+                }
+
+                // 3. Inicia o Peer e faz a chamada
+                peer = new Peer();
+                
+                peer.on('open', () => {
+                    // Faz a chamada de mídia para o transmissor
+                    currentCall = peer.call(remoteId, localStream);
+                    
+                    currentCall.on('close', () => {
+                        console.log('Chamada encerrada pelo transmissor.');
+                        disconnect();
+                    });
+
+                    currentCall.on('error', (err) => {
+                        statusDiv.textContent = `❌ Erro na chamada: ${err.message}`;
+                        console.error(err);
+                    });
+
+                    // Mudar para a tela de chamada
+                    scanView.style.display = 'none';
+                    callView.style.display = 'flex';
+                    statusDiv.textContent = '✅ Conectado! Você está transmitindo.';
+                });
+
+                peer.on('error', (err) => {
+                    statusDiv.textContent = `❌ Erro de conexão: ${err.message}`;
+                    console.error(err);
+                });
+
+            } catch (err) {
+                statusDiv.textContent = `❌ Falha ao iniciar a transmissão: ${err.message}`;
+                console.error(err);
+            }
+        }
+        
+        async function toggleFlash() {
+            if (!videoTrack) return;
+            try {
+                isFlashOn = !isFlashOn;
+                await videoTrack.applyConstraints({
+                    advanced: [{ torch: isFlashOn }]
+                });
+                flashBtn.textContent = isFlashOn ? '🔦 Flash: ON' : '🔦 Flash: OFF';
+            } catch (err) {
+                console.error('Erro ao controlar o flash:', err);
+                flashBtn.disabled = true;
+            }
+        }
+
+        function disconnect() {
+            if (currentCall) {
+                currentCall.close();
+            }
+            if (peer) {
+                peer.destroy();
+            }
+            if (localStream) {
+                localStream.getTracks().forEach(track => track.stop());
+            }
+            
+            // Resetar estado
+            currentCall = null;
+            peer = null;
+            localStream = null;
+            videoTrack = null;
+            isFlashOn = false;
+            flashBtn.textContent = '🔦 Flash';
+            flashBtn.disabled = false;
+            startScanBtn.disabled = false;
+
+            // Voltar para a tela de scan
+            callView.style.display = 'none';
+            scanView.style.display = 'flex';
+            statusDiv.textContent = 'Desconectado. Clique em "Iniciar Scanner" para uma nova conexão.';
+        }
     </script>
 </body>
 </html>

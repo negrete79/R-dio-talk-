@@ -3,62 +3,101 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Teste de Conexão - Espectador</title>
+    <title>Transmissor - Intercomunicador</title>
+    <!-- Biblioteca PeerJS -->
     <script src="https://unpkg.com/peerjs@1.5.1/dist/peerjs.min.js"></script>
+    <!-- Biblioteca para gerar QR Code -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
-        body { font-family: Arial, sans-serif; background: #333; color: #fff; text-align: center; padding: 20px; }
-        input { padding: 10px; font-size: 16px; width: 80%; margin-bottom: 10px; }
-        button { padding: 10px 20px; font-size: 16px; cursor: pointer; }
-        #status { font-size: 20px; margin-top: 20px; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; background: #1a1a1a; color: #f0f0f0; text-align: center; padding: 20px; margin: 0; }
+        h1 { color: #4CAF50; }
+        #container { max-width: 800px; margin: auto; background: #2a2a2a; padding: 20px; border-radius: 10px; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        #id-display { font-size: 18px; word-break: break-all; background: #333; padding: 10px; border-radius: 5px; margin: 10px 0; }
+        #qrcode { margin: 20px auto; width: 256px; height: 256px; padding: 20px; background: white; border-radius: 10px; display: inline-block; }
+        #status { font-size: 18px; margin: 20px 0; color: #ccc; }
+        #remote-video { 
+            width: 100%; 
+            max-width: 640px; 
+            height: auto; 
+            background: #000; 
+            border-radius: 10px; 
+            margin-top: 20px; 
+            display: none; /* Escondido até a conexão */
+        }
     </style>
 </head>
 <body>
-    <h1>Teste de Conexão (Espectador)</h1>
-    <p>Digite o ID que apareceu no outro dispositivo:</p>
-    <input type="text" id="id-input" placeholder="test-xxxxxxxx">
-    <br>
-    <button id="connect-btn">Conectar</button>
-    <div id="status">Aguardando...</div>
+    <div id="container">
+        <h1>📡 Transmissor</h1>
+        <p>Escaneie este QR Code com o dispositivo do Espectador para conectar.</p>
+        
+        <div id="id-display">Gerando ID...</div>
+        
+        <div id="qrcode"></div>
+        
+        <div id="status">Aguardando conexão...</div>
+        
+        <!-- Vídeo do espectador será exibido aqui -->
+        <video id="remote-video" autoplay playsinline></video>
+    </div>
 
     <script>
-        const idInput = document.getElementById('id-input');
-        const connectBtn = document.getElementById('connect-btn');
+        const idDisplay = document.getElementById('id-display');
         const statusDiv = document.getElementById('status');
-        
+        const qrcodeDiv = document.getElementById('qrcode');
+        const remoteVideo = document.getElementById('remote-video');
+
+        // Inicializa o Peer. O ID será gerado automaticamente.
         const peer = new Peer();
 
-        peer.on('open', () => {
-            statusDiv.textContent = 'Pronto para conectar. Digite o ID e clique em Conectar.';
-            console.log('Espectador inicializado.');
+        peer.on('open', (id) => {
+            console.log('Meu ID de peer é: ' + id);
+            idDisplay.textContent = `ID: ${id}`;
+            
+            // Gera o QR Code com o ID
+            new QRCode(qrcodeDiv, {
+                text: id,
+                width: 256,
+                height: 256,
+                colorDark : "#000000",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+            
+            statusDiv.textContent = 'Pronto para receber uma conexão.';
+        });
+
+        // Escuta por chamadas de mídia (vídeo e áudio)
+        peer.on('call', (call) => {
+            statusDiv.textContent = `Recebendo chamada de ${call.peer}...`;
+            
+            // Responde à chamada, sem enviar nosso próprio stream
+            call.answer();
+
+            // Quando o stream do espectador chegar, exiba no vídeo
+            call.on('stream', (remoteStream) => {
+                console.log('Stream recebido.');
+                statusDiv.textContent = `✅ Conectado com ${call.peer}. Recebendo áudio e vídeo.`;
+                remoteVideo.srcObject = remoteStream;
+                remoteVideo.style.display = 'block'; // Mostra o vídeo
+            });
+
+            call.on('close', () => {
+                statusDiv.textContent = '❌ Conexão encerrada.';
+                remoteVideo.style.display = 'none';
+                remoteVideo.srcObject = null;
+            });
+
+            call.on('error', (err) => {
+                statusDiv.textContent = `❌ Erro na chamada: ${err.message}`;
+                console.error('Erro na chamada:', err);
+            });
         });
 
         peer.on('error', (err) => {
-            statusDiv.textContent = `❌ ERRO: ${err.type} - ${err.message}`;
+            statusDiv.textContent = `❌ Erro no Peer: ${err.type}`;
             console.error('Erro no Peer:', err);
         });
-
-        connectBtn.onclick = () => {
-            const remoteId = idInput.value.trim();
-            if (!remoteId) {
-                alert('Por favor, digite um ID.');
-                return;
-            }
-            statusDiv.textContent = `Tentando conectar com ${remoteId}...`;
-            
-            const conn = peer.connect(remoteId);
-
-            conn.on('open', () => {
-                statusDiv.textContent = '✅ CONECTADO! Conexão bem-sucedida.';
-                console.log('Conectado com: ' + conn.peer);
-                // Envia uma mensagem de teste
-                conn.send('Olá! Esta é uma mensagem de teste.');
-            });
-
-            conn.on('error', (err) => {
-                statusDiv.textContent = `❌ ERRO DE CONEXÃO: ${err.type}`;
-                console.error('Erro na conexão:', err);
-            });
-        };
     </script>
 </body>
 </html>
